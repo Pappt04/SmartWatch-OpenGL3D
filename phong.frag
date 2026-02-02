@@ -15,12 +15,15 @@ struct Material{ //Materijal objekta
 
 in vec3 chNor;
 in vec3 chFragPos;
+in vec2 chTexCoord;
 
 out vec4 outCol;
 
 uniform Light uLight;
 uniform Material uMaterial;
 uniform vec3 uViewPos;	//Pozicija kamere (za racun spekularne komponente)
+uniform bool uUseTexture;
+uniform sampler2D uTexture;
 
 void main()
 {
@@ -36,5 +39,12 @@ void main()
 	float s = pow(max(dot(viewDirection, reflectionDirection), 0.0), uMaterial.shine);
 	vec3 resS = uLight.kS * (s * uMaterial.kS);
 
-	outCol = vec4(resA + resD + resS, 1.0); //Fongov model sjencenja
+	vec3 phongColor = resA + resD + resS;
+	
+	if (uUseTexture) {
+		vec4 texColor = texture(uTexture, chTexCoord);
+		outCol = vec4(phongColor, 1.0) * texColor;
+	} else {
+		outCol = vec4(phongColor, 1.0);
+	}
 }

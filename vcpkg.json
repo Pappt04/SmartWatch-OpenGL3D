@@ -1,0 +1,10 @@
+{
+  "name": "smartwatch3d",
+  "version": "1.0.0",
+  "builtin-baseline": "8a36504fd084003c8b1de4b555213d645baca612",
+  "dependencies": [
+    "glm",
+    "glew",
+    "glfw3"
+  ]
+}
