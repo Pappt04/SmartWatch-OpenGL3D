@@ -134,6 +134,7 @@
     <ClCompile Include="Source\HandController.cpp" />
     <ClCompile Include="Source\Models.cpp" />
     <ClCompile Include="Source\RunningSimulation.cpp" />
+    <ClCompile Include="Source\DigitRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Header\stb_image.h" />
@@ -142,6 +143,7 @@
     <ClInclude Include="Header\HandController.h" />
     <ClInclude Include="Header\Models.h" />
     <ClInclude Include="Header\RunningSimulation.h" />
+    <ClInclude Include="Header\DigitRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
