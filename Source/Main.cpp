@@ -102,18 +102,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS) {
         if (g_handController) {
             g_handController->toggleState();
-
-            if (g_handController->isInViewingMode()) {
-                // Show cursor with heart icon when viewing watch
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-                if (g_heartCursor) glfwSetCursor(window, g_heartCursor);
-            } else {
-                // Hide cursor for camera movement mode
-                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-                glfwSetCursor(window, NULL);
-                // Reset mouse tracking to prevent camera jump
-                g_firstMouse = true;
-            }
+            // Reset mouse tracking to prevent camera jump
+            g_firstMouse = true;
         }
     }
 
@@ -130,13 +120,14 @@ void renderQuad(unsigned int shader, unsigned int texture, float x, float y, flo
 
     glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(model));
     glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 1);
-    
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
     glUniform1i(glGetUniformLocation(shader, "uTexture"), 0);
-    
-    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(1.0f)));
-    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(1.0f)));
+
+    // Lower illumination for watch screen content
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.3f)));
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.4f)));
     
     static unsigned int quadVAO = 0;
     if (quadVAO == 0) {
@@ -166,26 +157,57 @@ void renderQuad(unsigned int shader, unsigned int texture, float x, float y, flo
 }
 
 void renderScreenContent(unsigned int shader, ScreenType screen, double currentTime, const glm::mat4& parentModel, float contentScale = 1.0f) {
-    // Background
-    glm::vec3 bgColor(0.05f, 0.05f, 0.05f);
-    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(bgColor));
-    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kA"), 1, glm::value_ptr(bgColor));
+    // Draw white screen background first
+    glm::mat4 bgModel = parentModel;
+    bgModel = glm::translate(bgModel, glm::vec3(0.0f, 0.0f, -0.001f)); // Slightly behind content
+    bgModel = glm::scale(bgModel, glm::vec3(0.4f * contentScale, 0.4f * contentScale, 1.0f));
+    glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(bgModel));
+    glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 0);
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.9f, 0.9f, 0.9f))); // White
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.8f, 0.8f, 0.8f)));
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.1f)));
+    glUniform1f(glGetUniformLocation(shader, "uMaterial.shine"), 4.0f);
+
+    // Draw background quad
+    static unsigned int bgVAO = 0;
+    if (bgVAO == 0) {
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f,
+             0.5f, -0.5f, 0.0f,
+             0.5f,  0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f,
+             0.5f,  0.5f, 0.0f,
+            -0.5f,  0.5f, 0.0f
+        };
+        unsigned int bgVBO;
+        glGenVertexArrays(1, &bgVAO);
+        glGenBuffers(1, &bgVBO);
+        glBindVertexArray(bgVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, bgVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+    }
+    glBindVertexArray(bgVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
 
     // Scale all positions and sizes by contentScale
     float s = contentScale;
 
-    // Draw arrows
+    // Draw arrows - smaller and inside the watch screen
     if (screen != SCREEN_CLOCK) {
-        renderQuad(shader, g_arrowRightTexture, -0.18f * s, 0.0f, 0.07f * s, 0.07f * s, parentModel, true);
+        renderQuad(shader, g_arrowRightTexture, -0.14f * s, 0.0f, 0.04f * s, 0.04f * s, parentModel, true);
     }
     if (screen != SCREEN_BATTERY) {
-        renderQuad(shader, g_arrowRightTexture, 0.18f * s, 0.0f, 0.07f * s, 0.07f * s, parentModel, false);
+        renderQuad(shader, g_arrowRightTexture, 0.14f * s, 0.0f, 0.04f * s, 0.04f * s, parentModel, false);
     }
 
     if (screen == SCREEN_CLOCK) {
-        float scale = 0.055f * s;
+        float scale = 0.045f * s;
         float totalWidth = (6 * 0.6f + 2 * 0.3f) * scale;
-        g_digitRenderer->drawTime(g_hours, g_minutes, g_seconds, -totalWidth/2.0f, -0.03f * s, scale, glm::vec3(1.0f), shader, parentModel);
+        // Dark text on white background
+        g_digitRenderer->drawTime(g_hours, g_minutes, g_seconds, -totalWidth/2.0f, -0.02f * s, scale, glm::vec3(0.1f, 0.1f, 0.1f), shader, parentModel);
     }
     else if (screen == SCREEN_HEART_RATE) {
         // ECG
@@ -201,31 +223,32 @@ void renderScreenContent(unsigned int shader, ScreenType screen, double currentT
         if (g_isRunning) glScalef(2.0f, 1.0f, 1.0f);
         glMatrixMode(GL_MODELVIEW);
 
-        renderQuad(shader, g_ecgTexture, 0.0f, -0.07f * s, 0.28f * s, 0.14f * s, parentModel);
+        renderQuad(shader, g_ecgTexture, 0.0f, -0.05f * s, 0.22f * s, 0.1f * s, parentModel);
 
         glMatrixMode(GL_TEXTURE);
         glLoadIdentity();
         glMatrixMode(GL_MODELVIEW);
 
-        float scale = 0.04f * s;
-        g_digitRenderer->drawNumber(g_heartRate, -0.07f * s, 0.07f * s, scale, glm::vec3(1.0f, 0.0f, 0.0f), shader, parentModel);
+        float scale = 0.035f * s;
+        // Red BPM text
+        g_digitRenderer->drawNumber(g_heartRate, -0.06f * s, 0.06f * s, scale, glm::vec3(0.8f, 0.0f, 0.0f), shader, parentModel);
 
         if (g_heartRate > 200) {
-            renderQuad(shader, g_warningTexture, 0.0f, 0.0f, 0.35f * s, 0.35f * s, parentModel);
+            renderQuad(shader, g_warningTexture, 0.0f, 0.0f, 0.3f * s, 0.3f * s, parentModel);
         }
     }
     else if (screen == SCREEN_BATTERY) {
-        renderQuad(shader, g_batteryTexture, 0.0f, 0.0f, 0.2f * s, 0.11f * s, parentModel);
+        renderQuad(shader, g_batteryTexture, 0.0f, 0.0f, 0.16f * s, 0.09f * s, parentModel);
 
-        float barWidth = 0.16f * s * (g_batteryPercent / 100.0f);
+        float barWidth = 0.13f * s * (g_batteryPercent / 100.0f);
 
-        glm::vec3 barColor(0.0f, 1.0f, 0.0f);
-        if (g_batteryPercent < 20) barColor = glm::vec3(1.0f, 1.0f, 0.0f);
-        if (g_batteryPercent < 10) barColor = glm::vec3(1.0f, 0.0f, 0.0f);
+        glm::vec3 barColor(0.0f, 0.8f, 0.0f);
+        if (g_batteryPercent < 20) barColor = glm::vec3(0.9f, 0.8f, 0.0f);
+        if (g_batteryPercent < 10) barColor = glm::vec3(0.9f, 0.0f, 0.0f);
 
         glm::mat4 model = parentModel;
-        model = glm::translate(model, glm::vec3(-0.08f * s + barWidth/2.0f, 0.0f, 0.02f));
-        model = glm::scale(model, glm::vec3(barWidth, 0.08f * s, 1.0f));
+        model = glm::translate(model, glm::vec3(-0.065f * s + barWidth/2.0f, 0.0f, 0.02f));
+        model = glm::scale(model, glm::vec3(barWidth, 0.065f * s, 1.0f));
         glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(model));
         glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 0);
         glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(barColor));
@@ -254,9 +277,10 @@ void renderScreenContent(unsigned int shader, ScreenType screen, double currentT
         glDrawArrays(GL_TRIANGLES, 0, 6);
         glBindVertexArray(0);
 
-        float scale = 0.04f * s;
-        g_digitRenderer->drawNumber(g_batteryPercent, -0.03f * s, 0.09f * s, scale, glm::vec3(1.0f), shader, parentModel);
-        g_digitRenderer->drawPercent(0.05f * s, 0.09f * s, scale, glm::vec3(1.0f), shader, parentModel);
+        float scale = 0.035f * s;
+        // Dark text on white background
+        g_digitRenderer->drawNumber(g_batteryPercent, -0.025f * s, 0.07f * s, scale, glm::vec3(0.1f, 0.1f, 0.1f), shader, parentModel);
+        g_digitRenderer->drawPercent(0.04f * s, 0.07f * s, scale, glm::vec3(0.1f, 0.1f, 0.1f), shader, parentModel);
     }
 }
 
@@ -274,8 +298,8 @@ int main() {
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetKeyCallback(window, key_callback);
-    // Start with hidden cursor - still tracks mouse for camera movement
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    // Cursor always visible
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     
     if (glewInit() != GLEW_OK) return endProgram("GLEW initialization failed");
     
@@ -294,6 +318,9 @@ int main() {
     g_batteryTexture = loadImageToTexture("Resources/textures/battery.png");
     g_arrowRightTexture = loadImageToTexture("Resources/textures/arrow_right.png");
     g_heartCursor = loadImageToCursor("Resources/textures/red_heart_cursor.png");
+
+    // Set heart cursor always
+    if (g_heartCursor) glfwSetCursor(window, g_heartCursor);
     
     // Camera positioned low in the street, close to hand level
     g_camera = new Camera(glm::vec3(0.0f, 1.4f, 0.0f), (float)wWidth / (float)wHeight);
@@ -306,10 +333,10 @@ int main() {
     // Extended ground plane to accommodate more buildings
     Mesh groundPlane = Geometry::createGroundPlane(80.0f, 250.0f, 40);
     Mesh handModel = Geometry::createHandModel();
-    // Watch screen for display - larger to fill view
-    Mesh watchScreen = Geometry::createWatchScreen(0.42f);
-    // Black watch body/case around the screen - larger
-    Mesh watchBody = Geometry::createWatchBody(0.5f, 0.5f, 0.06f);
+    // Watch screen for display - smaller
+    Mesh watchScreen = Geometry::createWatchScreen(0.25f);
+    // Black watch body/case around the screen - smaller
+    Mesh watchBody = Geometry::createWatchBody(0.3f, 0.3f, 0.04f);
     // Wider road for better perspective
     Mesh roadSegment = Geometry::createRoadSegment(8.0f, 15.0f);
     
@@ -350,10 +377,10 @@ int main() {
     glm::vec3 lightDiffuse(1.0f, 0.95f, 0.85f); // Warm sunlight
     glm::vec3 lightSpecular(1.0f, 1.0f, 0.9f);
 
-    // Watch screen light parameters (weak secondary light)
-    glm::vec3 watchLightAmbient(0.02f, 0.02f, 0.03f);
-    glm::vec3 watchLightDiffuse(0.15f, 0.18f, 0.2f); // Cool blue-ish screen glow
-    glm::vec3 watchLightSpecular(0.1f, 0.1f, 0.15f);
+    // Watch screen light parameters (very weak secondary light)
+    glm::vec3 watchLightAmbient(0.005f, 0.005f, 0.008f);
+    glm::vec3 watchLightDiffuse(0.03f, 0.04f, 0.05f); // Very dim screen glow
+    glm::vec3 watchLightSpecular(0.02f, 0.02f, 0.03f);
     
     double lastTime = glfwGetTime();
     
@@ -417,7 +444,7 @@ int main() {
 
         // Watch screen light position (updated dynamically based on watch position)
         glm::mat4 handM_temp = g_handController->getTransformMatrix();
-        glm::vec3 watchScreenPos = glm::vec3(handM_temp * glm::vec4(0.0f, 0.08f, -1.17f, 1.0f));
+        glm::vec3 watchScreenPos = glm::vec3(handM_temp * glm::vec4(0.0f, 0.1f, -0.02f, 1.0f));
         glUniform3fv(glGetUniformLocation(phongShader, "uWatchLight.pos"), 1, glm::value_ptr(watchScreenPos));
         glUniform3fv(glGetUniformLocation(phongShader, "uWatchLight.kA"), 1, glm::value_ptr(watchLightAmbient));
         glUniform3fv(glGetUniformLocation(phongShader, "uWatchLight.kD"), 1, glm::value_ptr(watchLightDiffuse));
@@ -473,25 +500,26 @@ int main() {
         glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 12.0f);
         handModel.draw();
 
-        // Watch position on wrist - middle of the long arm, rotated around Z axis
+        // Watch position - at the START of hand (wrist area), rotated to face camera
         glm::mat4 watchM = handM;
-        watchM = glm::translate(watchM, glm::vec3(0.0f, 0.08f, -1.2f)); // Middle of long arm
-        watchM = glm::rotate(watchM, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // Rotate around Z axis
+        watchM = glm::translate(watchM, glm::vec3(-0.15f, 0.1f, -0.05f)); // On top of wrist, at start of hand
+        // Rotate -90 degrees around X axis so screen faces UP (toward camera), parallel to arm length
+        watchM = glm::rotate(watchM, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         // Render black watch body/case
         glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(watchM));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.05f, 0.05f, 0.05f))); // Black
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.02f, 0.02f, 0.02f)));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.4f, 0.4f, 0.4f))); // Shiny
-        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 32.0f);
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.02f, 0.02f, 0.02f))); // Very dark black
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.01f, 0.01f, 0.01f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.1f, 0.1f, 0.1f))); // Less shiny
+        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 16.0f);
         watchBody.draw();
 
         // Watch screen (slightly in front of body toward camera)
         glm::mat4 screenM = watchM;
-        screenM = glm::translate(screenM, glm::vec3(0.0f, 0.0f, 0.031f)); // Front of watch body
+        screenM = glm::translate(screenM, glm::vec3(0.0f, 0.0f, 0.021f)); // Front of watch body
 
-        // Scale content for watch screen
-        float contentScale = 1.6f;
+        // Scale content for watch screen - smaller
+        float contentScale = 0.9f;
 
         // Render screen content
         renderScreenContent(phongShader, g_currentScreen, currentTime, screenM, contentScale);

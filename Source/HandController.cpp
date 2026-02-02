@@ -5,7 +5,7 @@ HandController::HandController()
     : currentState(HAND_STATE_NORMAL),
       targetState(HAND_STATE_NORMAL),
       normalOffset(0.5f, -0.6f, -0.7f),       // Offset: right side, below eye level, in front
-      viewingOffset(0.8f, -0.2f, -0.5f),      // Offset: hand starts from RIGHT side, watch ends up in middle
+      viewingOffset(0.0f, 0.0f, -0.6f),       // Offset: centered in front of camera
       currentOffset(normalOffset),
       cameraPosition(0.0f),
       transitionProgress(0.0f),

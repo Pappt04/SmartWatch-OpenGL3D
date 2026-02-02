@@ -213,10 +213,10 @@ namespace Geometry {
     Mesh createHandModel() {
         Mesh mesh;
 
-        // Arm/wrist model - very long to extend across entire screen
-        float armLength = 3.0f;   // Very long arm to span full screen
-        float armWidth = 0.22f;   // Wide
-        float armHeight = 0.1f;   // Flat
+        // Arm/wrist model - sized to match watch proportions
+        float armLength = 1.0f;   // Standard arm length
+        float armWidth = 0.18f;   // Standard width
+        float armHeight = 0.14f;  // Standard height
         
         // Define 8 vertices of the box
         glm::vec3 vertices[8] = {
