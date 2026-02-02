@@ -348,28 +348,8 @@ int main() {
 
     // Dense building placement along both sides of the road
     // Buildings are larger (scale 3.0-5.0) so they tower over the camera
-    std::vector<glm::vec3> buildingPositions;
-    std::vector<float> buildingScales;
-    std::vector<int> buildingTypes; // Which model to use
-
-    // Create dense rows of buildings on both sides of the road
-    float roadHalfWidth = 4.0f; // Road is 8 units wide, buildings start at edge
-    float buildingSpacing = 10.0f; // Space between buildings along Z
-    int numBuildingsPerSide = 18; // More buildings for density
-
-    for (int i = 0; i < numBuildingsPerSide; i++) {
-        float zPos = -3.0f - i * buildingSpacing; // Start close to camera at z=0
-
-        // Left side buildings
-        buildingPositions.push_back(glm::vec3(-roadHalfWidth - 5.0f, 0.0f, zPos));
-        buildingScales.push_back(3.5f + (i % 3) * 1.0f); // Vary scale 3.5 - 5.5
-        buildingTypes.push_back(i % 4); // Cycle through building types
-
-        // Right side buildings
-        buildingPositions.push_back(glm::vec3(roadHalfWidth + 5.0f, 0.0f, zPos - buildingSpacing * 0.5f));
-        buildingScales.push_back(3.0f + ((i + 1) % 4) * 0.9f); // Vary scale 3.0 - 5.7
-        buildingTypes.push_back((i + 2) % 4);
-    }
+    // Building models loaded above
+    // Building placement managed by RunningSimulation
 
     // Main sky/sun light - large and elevated for dramatic lighting
     glm::vec3 lightPos(50.0f, 100.0f, 30.0f); // High in the sky, slightly behind camera
@@ -483,12 +463,14 @@ int main() {
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.2f, 0.2f, 0.2f)));
         glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 16.0f);
 
-        for (size_t i = 0; i < buildingPositions.size(); i++) {
+        const auto& simBuildings = g_runningSimulation->getBuildings();
+        for (const auto& b : simBuildings) {
             glm::mat4 bModel = glm::mat4(1.0f);
-            bModel = glm::translate(bModel, buildingPositions[i]);
-            bModel = glm::scale(bModel, glm::vec3(buildingScales[i]));
+            bModel = glm::translate(bModel, b.position);
+            bModel = glm::scale(bModel, glm::vec3(b.scale));
+            
             glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(bModel));
-            buildings[buildingTypes[i]]->draw();
+            buildings[b.type]->draw();
         }
         
         // Render Hand - skin-like material

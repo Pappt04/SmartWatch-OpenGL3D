@@ -372,7 +372,7 @@ namespace Geometry {
         
         v1.position = glm::vec3(halfWidth, 0.0f, 0.0f);
         v1.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-        v1.texCoords = glm::vec2(1.0f, 0.0f);
+        v1.texCoords = glm::vec2(0.0f, 1.0f);
         
         v2.position = glm::vec3(halfWidth, 0.0f, -length);
         v2.normal = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -380,7 +380,7 @@ namespace Geometry {
         
         v3.position = glm::vec3(-halfWidth, 0.0f, -length);
         v3.normal = glm::vec3(0.0f, 1.0f, 0.0f);
-        v3.texCoords = glm::vec2(0.0f, 1.0f);
+        v3.texCoords = glm::vec2(1.0f, 0.0f);
         
         mesh.vertices = {v0, v1, v2, v3};
         mesh.indices = {0, 1, 2, 0, 2, 3};
