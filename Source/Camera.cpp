@@ -6,13 +6,13 @@ Camera::Camera(glm::vec3 startPosition, float aspectRatio)
       worldUp(0.0f, 1.0f, 0.0f),
       yaw(-90.0f),
       pitch(0.0f),
-      fov(45.0f),
+      fov(50.0f),  // Slightly wider FOV for better scene coverage
       aspectRatio(aspectRatio),
       nearPlane(0.1f),
-      farPlane(100.0f),
+      farPlane(350.0f),  // Extended far plane to see distant buildings
       bobbingOffset(0.0f),
       bobbingSpeed(8.0f),
-      bobbingAmount(0.05f) {
+      bobbingAmount(0.08f) {  // Slightly more pronounced bobbing
     updateCameraVectors();
 }
 
@@ -40,9 +40,9 @@ glm::mat4 Camera::getProjectionMatrix() const {
 
 void Camera::moveVertical(float offset) {
     position.y += offset;
-    // Clamp vertical position to reasonable bounds
-    if (position.y < 0.5f) position.y = 0.5f;
-    if (position.y > 5.0f) position.y = 5.0f;
+    // Very limited vertical movement - mostly fixed street view
+    if (position.y < 1.3f) position.y = 1.3f;
+    if (position.y > 1.8f) position.y = 1.8f;
 }
 
 void Camera::updateBobbing(double deltaTime, bool isRunning) {

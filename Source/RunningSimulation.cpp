@@ -4,11 +4,11 @@
 
 RunningSimulation::RunningSimulation(float segmentLength, int numSegments)
     : isRunning(false),
-      speed(5.0f),
+      speed(8.0f),  // Faster running speed for larger segments
       segmentLength(segmentLength),
       numSegments(numSegments) {
     segmentPositions.clear(); // Ensure clear
-    
+
     // Initialize segments in a line going backwards (-Z)
     for (int i = 0; i < numSegments; i++) {
         segmentPositions.push_back(-i * segmentLength);
@@ -42,18 +42,13 @@ void RunningSimulation::update(double deltaTime, bool running) {
         if (pos < minZ) minZ = pos;
     }
     
-    // Check for segments that passed the camera (e.g., Z > 5.0)
+    // Check for segments that passed the camera (camera at Z=0)
     for (float& pos : segmentPositions) {
-        if (pos > 10.0f) { // Slightly behind camera (assuming camera at 5.0 looking at 0.0?)
-            // Actually camera is at (0, 2, 5).
-            // Road segments are at y=0.
-            // If pos > 5.0, it is behind current camera Z.
-            // Let's use 10.0 to be safe so it doesn't pop out visibly.
-            
+        if (pos > 5.0f) { // Behind camera position with buffer
             // Move this segment to the back of the line
             pos = minZ - segmentLength;
-            
-            // Update minZ in case multiple segments wrap in one frame (unlikely but safe)
+
+            // Update minZ in case multiple segments wrap in one frame
             minZ = pos;
         }
     }

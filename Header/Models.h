@@ -50,7 +50,10 @@ namespace Geometry {
     
     // Create a watch screen quad
     Mesh createWatchScreen(float size);
-    
+
+    // Create a watch body (black box case)
+    Mesh createWatchBody(float width, float height, float depth);
+
     // Create a road segment
     Mesh createRoadSegment(float width, float length);
 }

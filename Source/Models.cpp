@@ -212,11 +212,11 @@ namespace Geometry {
     
     Mesh createHandModel() {
         Mesh mesh;
-        
-        // Simple arm/wrist model (rectangular prism)
-        float armLength = 0.8f;
-        float armWidth = 0.15f;
-        float armHeight = 0.12f;
+
+        // Arm/wrist model - very long to extend across entire screen
+        float armLength = 3.0f;   // Very long arm to span full screen
+        float armWidth = 0.22f;   // Wide
+        float armHeight = 0.1f;   // Flat
         
         // Define 8 vertices of the box
         glm::vec3 vertices[8] = {
@@ -302,6 +302,63 @@ namespace Geometry {
         return mesh;
     }
     
+    Mesh createWatchBody(float width, float height, float depth) {
+        Mesh mesh;
+
+        float hw = width / 2.0f;
+        float hh = height / 2.0f;
+        float hd = depth / 2.0f;
+
+        // Black watch case - box around the screen
+        glm::vec3 vertices[8] = {
+            glm::vec3(-hw, -hh, -hd),  // 0: back-bottom-left
+            glm::vec3( hw, -hh, -hd),  // 1: back-bottom-right
+            glm::vec3( hw,  hh, -hd),  // 2: back-top-right
+            glm::vec3(-hw,  hh, -hd),  // 3: back-top-left
+            glm::vec3(-hw, -hh,  hd),  // 4: front-bottom-left
+            glm::vec3( hw, -hh,  hd),  // 5: front-bottom-right
+            glm::vec3( hw,  hh,  hd),  // 6: front-top-right
+            glm::vec3(-hw,  hh,  hd)   // 7: front-top-left
+        };
+
+        struct Face {
+            int v[4];
+            glm::vec3 normal;
+        };
+
+        // All faces except front (where screen is)
+        Face faces[5] = {
+            {{0, 1, 2, 3}, glm::vec3(0, 0, -1)},  // Back
+            {{4, 0, 3, 7}, glm::vec3(-1, 0, 0)},  // Left
+            {{1, 5, 6, 2}, glm::vec3(1, 0, 0)},   // Right
+            {{3, 2, 6, 7}, glm::vec3(0, 1, 0)},   // Top
+            {{4, 5, 1, 0}, glm::vec3(0, -1, 0)}   // Bottom
+        };
+
+        for (int f = 0; f < 5; f++) {
+            int baseIdx = mesh.vertices.size();
+
+            for (int i = 0; i < 4; i++) {
+                Vertex v;
+                v.position = vertices[faces[f].v[i]];
+                v.normal = faces[f].normal;
+                v.texCoords = glm::vec2((i % 2), (i / 2));
+                mesh.vertices.push_back(v);
+            }
+
+            mesh.indices.push_back(baseIdx + 0);
+            mesh.indices.push_back(baseIdx + 1);
+            mesh.indices.push_back(baseIdx + 2);
+
+            mesh.indices.push_back(baseIdx + 0);
+            mesh.indices.push_back(baseIdx + 2);
+            mesh.indices.push_back(baseIdx + 3);
+        }
+
+        mesh.setupMesh();
+        return mesh;
+    }
+
     Mesh createRoadSegment(float width, float length) {
         Mesh mesh;
         
