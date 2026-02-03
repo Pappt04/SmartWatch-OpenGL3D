@@ -39,6 +39,7 @@ int g_heartRate = 70;
 double g_lastHeartUpdate = 0.0;
 int g_batteryPercent = 100;
 double g_lastBatteryUpdate = 0.0;
+float g_ecgScrollOffset = 0.0f; // ECG texture scroll position
 
 // Time Simulation
 int g_hours = 12, g_minutes = 30, g_seconds = 0;
@@ -46,7 +47,6 @@ double g_lastTimeUpdate = 0.0;
 
 // Resources
 unsigned int g_roadTexture = 0;
-unsigned int g_grassTexture = 0;
 unsigned int g_warningTexture = 0;
 unsigned int g_ecgTexture = 0;
 unsigned int g_batteryTexture = 0;
@@ -178,6 +178,59 @@ void renderQuad(unsigned int shader, unsigned int texture, float x, float y, flo
     glBindVertexArray(0);
 }
 
+// Render ECG with animated texture coordinates based on heart rate
+void renderECG(unsigned int shader, unsigned int texture, float x, float y, float w, float h,
+               const glm::mat4& parentModel, float scrollOffset, float texScale, float heightScale) {
+    glm::mat4 model = parentModel;
+    model = glm::translate(model, glm::vec3(x, y, 0.01f));
+    model = glm::scale(model, glm::vec3(w, h * heightScale, 1.0f));
+
+    glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 1);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glUniform1i(glGetUniformLocation(shader, "uTexture"), 0);
+
+    // Green ECG line color
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.0f, 0.8f, 0.0f)));
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.0f, 0.5f, 0.0f)));
+
+    // Create dynamic vertices with scrolling texture coordinates
+    float u0 = scrollOffset;
+    float u1 = scrollOffset + texScale;
+
+    float vertices[] = {
+        -0.5f, -0.5f, 0.0f, u0, 0.0f,
+         0.5f, -0.5f, 0.0f, u1, 0.0f,
+         0.5f,  0.5f, 0.0f, u1, 1.0f,
+        -0.5f, -0.5f, 0.0f, u0, 0.0f,
+         0.5f,  0.5f, 0.0f, u1, 1.0f,
+        -0.5f,  0.5f, 0.0f, u0, 1.0f
+    };
+
+    static unsigned int ecgVAO = 0, ecgVBO = 0;
+    if (ecgVAO == 0) {
+        glGenVertexArrays(1, &ecgVAO);
+        glGenBuffers(1, &ecgVBO);
+        glBindVertexArray(ecgVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, ecgVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+    } else {
+        glBindVertexArray(ecgVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, ecgVBO);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+    }
+
+    glBindVertexArray(ecgVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+}
+
 void renderScreenContent(unsigned int shader, ScreenType screen, double currentTime, const glm::mat4& parentModel, float contentScale = 1.0f) {
     // Draw white screen background first - sized to fit watch screen (0.25f geometry)
     glm::mat4 bgModel = parentModel;
@@ -247,28 +300,22 @@ void renderScreenContent(unsigned int shader, ScreenType screen, double currentT
         g_digitRenderer->drawTime(g_hours, g_minutes, g_seconds, -totalWidth/2.0f, -0.02f * s, scale, glm::vec3(0.1f, 0.1f, 0.1f), shader, parentModel);
     }
     else if (screen == SCREEN_HEART_RATE) {
-        // ECG
-        float speed = g_isRunning ? 2.0f : 0.5f;
-        float offset = (float)currentTime * speed;
+        // ECG with dynamic scrolling and scaling based on heart rate
+        // texScale: more beats visible at higher heart rate (texture repeats more)
+        float texScale = 2.0f + ((g_heartRate - 60.0f) / 150.0f) * 2.0f;
+        texScale = std::max(1.5f, std::min(4.0f, texScale));
 
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, g_ecgTexture);
+        // heightScale: larger amplitude at higher heart rate
+        float heightScale = 1.0f + ((g_heartRate - 70.0f) / 150.0f) * 0.5f;
+        heightScale = std::max(1.0f, std::min(1.5f, heightScale));
 
-        glMatrixMode(GL_TEXTURE);
-        glLoadIdentity();
-        glTranslatef(offset, 0.0f, 0.0f);
-        if (g_isRunning) glScalef(2.0f, 1.0f, 1.0f);
-        glMatrixMode(GL_MODELVIEW);
-
-        renderQuad(shader, g_ecgTexture, 0.0f, -0.05f * s, 0.22f * s, 0.1f * s, parentModel);
-
-        glMatrixMode(GL_TEXTURE);
-        glLoadIdentity();
-        glMatrixMode(GL_MODELVIEW);
+        // Render ECG with animated texture
+        renderECG(shader, g_ecgTexture, 0.0f, -0.05f * s, 0.22f * s, 0.08f * s,
+                  parentModel, g_ecgScrollOffset, texScale, heightScale);
 
         float scale = 0.035f * s;
         // Red BPM text
-        g_digitRenderer->drawNumber(g_heartRate, -0.06f * s, 0.06f * s, scale, glm::vec3(0.8f, 0.0f, 0.0f), shader, parentModel);
+        g_digitRenderer->drawNumber(g_heartRate, -0.06f * s, 0.08f * s, scale, glm::vec3(0.8f, 0.0f, 0.0f), shader, parentModel);
 
         if (g_heartRate > 200) {
             renderQuad(shader, g_warningTexture, 0.0f, 0.0f, 0.3f * s, 0.3f * s, parentModel);
@@ -350,7 +397,6 @@ int main() {
     unsigned int phongShader = createShader("phong.vert", "phong.frag");
 
     g_roadTexture = loadImageToTexture("Resources/road.jpg");
-    g_grassTexture = loadImageToTexture("Resources/grass.jpg");
     g_warningTexture = loadImageToTexture("Resources/textures/warning.png");
     g_ecgTexture = loadImageToTexture("Resources/textures/ecg_wave.png");
     g_batteryTexture = loadImageToTexture("Resources/textures/battery.png");
@@ -364,12 +410,12 @@ int main() {
     g_camera = new Camera(glm::vec3(0.0f, 1.4f, 0.0f), (float)wWidth / (float)wHeight);
     g_handController = new HandController();
     // Larger segments to match wider road, more segments for extended scene
-    g_runningSimulation = new RunningSimulation(15.0f, 8);
+    g_runningSimulation = new RunningSimulation(15.0f, 12); // More road segments for longer view
     g_digitRenderer = new DigitRenderer();
     g_digitRenderer->init();
-    
-    // Extended ground plane to accommodate more buildings
-    Mesh groundPlane = Geometry::createGroundPlane(80.0f, 250.0f, 40);
+
+    // Large ground plane extending to horizon with fog fade
+    Mesh groundPlane = Geometry::createGroundPlane(200.0f, 400.0f, 50);
     Mesh handModel = Geometry::createHandModel();
     // Circular watch screen for display
     Mesh watchScreen = Geometry::createWatchScreen(0.25f, 32);
@@ -433,12 +479,17 @@ int main() {
             if (g_isRunning) {
                 if (g_heartRate < 220) g_heartRate++;
             } else {
-                if (g_heartRate > 70) g_heartRate--; 
+                if (g_heartRate > 70) g_heartRate--;
                 else if (g_heartRate < 60) g_heartRate++;
                 else g_heartRate += (rand() % 3 - 1);
             }
         }
-        
+
+        // Update ECG scroll offset - speed increases with heart rate
+        float ecgSpeed = 0.3f * (g_heartRate / 70.0f);
+        g_ecgScrollOffset += ecgSpeed * (float)deltaTime;
+        if (g_ecgScrollOffset > 100.0f) g_ecgScrollOffset -= 100.0f; // Wrap around
+
         if (currentTime - g_lastBatteryUpdate >= 10.0) {
             g_lastBatteryUpdate = currentTime;
             if (g_batteryPercent > 0) g_batteryPercent--;
@@ -468,18 +519,20 @@ int main() {
         glUniform3fv(glGetUniformLocation(phongShader, "uWatchLight.kD"), 1, glm::value_ptr(watchLightDiffuse));
         glUniform3fv(glGetUniformLocation(phongShader, "uWatchLight.kS"), 1, glm::value_ptr(watchLightSpecular));
         glUniform1i(glGetUniformLocation(phongShader, "uUseWatchLight"), g_handController->isInViewingMode() ? 1 : 0);
-        
-        // Render Ground - grass texture for the surrounding area
+
+        // Set fog parameters for natural horizon fade
+        glUniform1i(glGetUniformLocation(phongShader, "uUseFog"), 1);
+        glUniform3fv(glGetUniformLocation(phongShader, "uFogColor"), 1, glm::value_ptr(glm::vec3(0.45f, 0.55f, 0.7f))); // Match sky color
+        glUniform1f(glGetUniformLocation(phongShader, "uFogDensity"), 0.00025f);
+
+        // Render Ground - solid green color (no texture)
         glm::mat4 groundModel = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(groundModel));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.5f, 0.7f, 0.4f))); // Greenish tint
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.2f, 0.3f, 0.15f)));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.05f, 0.05f, 0.05f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.2f, 0.6f, 0.15f))); // Green grass color
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.1f, 0.25f, 0.08f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.02f, 0.02f, 0.02f)));
         glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 2.0f);
-        glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 1);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, g_grassTexture);
-        glUniform1i(glGetUniformLocation(phongShader, "uTexture"), 0);
+        glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 0);
         groundPlane.draw();
         
         // Render Road Segments - with road texture
@@ -487,8 +540,10 @@ int main() {
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.25f, 0.25f, 0.25f)));
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.1f, 0.1f, 0.1f)));
         glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 4.0f);
+        glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 1);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, g_roadTexture);
+        glUniform1i(glGetUniformLocation(phongShader, "uTexture"), 0);
         for (float zPos : g_runningSimulation->getSegmentPositions()) {
             glm::mat4 segmentModel = glm::mat4(1.0f);
             segmentModel = glm::translate(segmentModel, glm::vec3(0.0f, 0.01f, zPos));
@@ -513,6 +568,9 @@ int main() {
             buildings[b.type]->draw();
         }
         
+        // Disable fog for hand and watch (they're close to camera)
+        glUniform1i(glGetUniformLocation(phongShader, "uUseFog"), 0);
+
         // Render Hand - skin-like material
         glm::mat4 handM = g_handController->getTransformMatrix();
         glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(handM));

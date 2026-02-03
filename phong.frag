@@ -27,6 +27,11 @@ uniform vec3 uViewPos;	//Pozicija kamere (za racun spekularne komponente)
 uniform bool uUseTexture;
 uniform sampler2D uTexture;
 
+// Fog parameters
+uniform bool uUseFog;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+
 vec3 calcLight(Light light, vec3 normal, vec3 viewDir) {
 	vec3 ambient = light.kA * uMaterial.kA;
 
@@ -58,10 +63,21 @@ void main()
 	// Clamp to prevent over-saturation
 	phongColor = clamp(phongColor, 0.0, 1.0);
 
+	vec4 finalColor;
 	if (uUseTexture) {
 		vec4 texColor = texture(uTexture, chTexCoord);
-		outCol = vec4(phongColor, 1.0) * texColor;
+		finalColor = vec4(phongColor, 1.0) * texColor;
 	} else {
-		outCol = vec4(phongColor, 1.0);
+		finalColor = vec4(phongColor, 1.0);
 	}
+
+	// Apply fog for natural horizon fade
+	if (uUseFog) {
+		float distance = length(uViewPos - chFragPos);
+		float fogFactor = exp(-uFogDensity * distance * distance); // Exponential squared fog
+		fogFactor = clamp(fogFactor, 0.0, 1.0);
+		finalColor = mix(vec4(uFogColor, 1.0), finalColor, fogFactor);
+	}
+
+	outCol = finalColor;
 }
