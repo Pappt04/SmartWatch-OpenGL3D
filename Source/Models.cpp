@@ -271,88 +271,103 @@ namespace Geometry {
         return mesh;
     }
     
-    Mesh createWatchScreen(float size) {
+    Mesh createWatchScreen(float size, int segments) {
         Mesh mesh;
-        
-        float half = size / 2.0f;
-        
-        // Create a quad facing forward (along -Z axis)
-        Vertex v0, v1, v2, v3;
-        
-        v0.position = glm::vec3(-half, -half, 0.0f);
-        v0.normal = glm::vec3(0.0f, 0.0f, 1.0f);
-        v0.texCoords = glm::vec2(0.0f, 0.0f);
-        
-        v1.position = glm::vec3(half, -half, 0.0f);
-        v1.normal = glm::vec3(0.0f, 0.0f, 1.0f);
-        v1.texCoords = glm::vec2(1.0f, 0.0f);
-        
-        v2.position = glm::vec3(half, half, 0.0f);
-        v2.normal = glm::vec3(0.0f, 0.0f, 1.0f);
-        v2.texCoords = glm::vec2(1.0f, 1.0f);
-        
-        v3.position = glm::vec3(-half, half, 0.0f);
-        v3.normal = glm::vec3(0.0f, 0.0f, 1.0f);
-        v3.texCoords = glm::vec2(0.0f, 1.0f);
-        
-        mesh.vertices = {v0, v1, v2, v3};
-        mesh.indices = {0, 1, 2, 0, 2, 3};
-        
+
+        float radius = size / 2.0f;
+
+        // Create a circular disc facing forward (along +Z axis)
+        // Center vertex
+        Vertex center;
+        center.position = glm::vec3(0.0f, 0.0f, 0.0f);
+        center.normal = glm::vec3(0.0f, 0.0f, 1.0f);
+        center.texCoords = glm::vec2(0.5f, 0.5f);
+        mesh.vertices.push_back(center);
+
+        // Edge vertices
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)i / (float)segments * 2.0f * 3.14159265f;
+            Vertex v;
+            v.position = glm::vec3(radius * cos(angle), radius * sin(angle), 0.0f);
+            v.normal = glm::vec3(0.0f, 0.0f, 1.0f);
+            v.texCoords = glm::vec2(0.5f + 0.5f * cos(angle), 0.5f + 0.5f * sin(angle));
+            mesh.vertices.push_back(v);
+        }
+
+        // Create triangles (fan from center)
+        for (int i = 1; i <= segments; i++) {
+            mesh.indices.push_back(0);       // center
+            mesh.indices.push_back(i);       // current edge
+            mesh.indices.push_back(i + 1);   // next edge
+        }
+
         mesh.setupMesh();
         return mesh;
     }
     
-    Mesh createWatchBody(float width, float height, float depth) {
+    Mesh createWatchBody(float diameter, float depth, int segments) {
         Mesh mesh;
 
-        float hw = width / 2.0f;
-        float hh = height / 2.0f;
+        float radius = diameter / 2.0f;
         float hd = depth / 2.0f;
 
-        // Black watch case - box around the screen
-        glm::vec3 vertices[8] = {
-            glm::vec3(-hw, -hh, -hd),  // 0: back-bottom-left
-            glm::vec3( hw, -hh, -hd),  // 1: back-bottom-right
-            glm::vec3( hw,  hh, -hd),  // 2: back-top-right
-            glm::vec3(-hw,  hh, -hd),  // 3: back-top-left
-            glm::vec3(-hw, -hh,  hd),  // 4: front-bottom-left
-            glm::vec3( hw, -hh,  hd),  // 5: front-bottom-right
-            glm::vec3( hw,  hh,  hd),  // 6: front-top-right
-            glm::vec3(-hw,  hh,  hd)   // 7: front-top-left
-        };
+        // Cylindrical watch case
+        // Back face (circle at -Z)
+        int backCenterIdx = mesh.vertices.size();
+        Vertex backCenter;
+        backCenter.position = glm::vec3(0.0f, 0.0f, -hd);
+        backCenter.normal = glm::vec3(0.0f, 0.0f, -1.0f);
+        backCenter.texCoords = glm::vec2(0.5f, 0.5f);
+        mesh.vertices.push_back(backCenter);
 
-        struct Face {
-            int v[4];
-            glm::vec3 normal;
-        };
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)i / (float)segments * 2.0f * 3.14159265f;
+            Vertex v;
+            v.position = glm::vec3(radius * cos(angle), radius * sin(angle), -hd);
+            v.normal = glm::vec3(0.0f, 0.0f, -1.0f);
+            v.texCoords = glm::vec2(0.5f + 0.5f * cos(angle), 0.5f + 0.5f * sin(angle));
+            mesh.vertices.push_back(v);
+        }
 
-        // All faces except front (where screen is)
-        Face faces[5] = {
-            {{0, 1, 2, 3}, glm::vec3(0, 0, -1)},  // Back
-            {{4, 0, 3, 7}, glm::vec3(-1, 0, 0)},  // Left
-            {{1, 5, 6, 2}, glm::vec3(1, 0, 0)},   // Right
-            {{3, 2, 6, 7}, glm::vec3(0, 1, 0)},   // Top
-            {{4, 5, 1, 0}, glm::vec3(0, -1, 0)}   // Bottom
-        };
+        // Back face triangles
+        for (int i = 1; i <= segments; i++) {
+            mesh.indices.push_back(backCenterIdx);
+            mesh.indices.push_back(backCenterIdx + i + 1);
+            mesh.indices.push_back(backCenterIdx + i);
+        }
 
-        for (int f = 0; f < 5; f++) {
-            int baseIdx = mesh.vertices.size();
+        // Side wall (cylinder)
+        int sideStartIdx = mesh.vertices.size();
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)i / (float)segments * 2.0f * 3.14159265f;
+            float nx = cos(angle);
+            float ny = sin(angle);
 
-            for (int i = 0; i < 4; i++) {
-                Vertex v;
-                v.position = vertices[faces[f].v[i]];
-                v.normal = faces[f].normal;
-                v.texCoords = glm::vec2((i % 2), (i / 2));
-                mesh.vertices.push_back(v);
-            }
+            // Back edge
+            Vertex vBack;
+            vBack.position = glm::vec3(radius * nx, radius * ny, -hd);
+            vBack.normal = glm::vec3(nx, ny, 0.0f);
+            vBack.texCoords = glm::vec2((float)i / segments, 0.0f);
+            mesh.vertices.push_back(vBack);
 
-            mesh.indices.push_back(baseIdx + 0);
-            mesh.indices.push_back(baseIdx + 1);
-            mesh.indices.push_back(baseIdx + 2);
+            // Front edge
+            Vertex vFront;
+            vFront.position = glm::vec3(radius * nx, radius * ny, hd);
+            vFront.normal = glm::vec3(nx, ny, 0.0f);
+            vFront.texCoords = glm::vec2((float)i / segments, 1.0f);
+            mesh.vertices.push_back(vFront);
+        }
 
-            mesh.indices.push_back(baseIdx + 0);
-            mesh.indices.push_back(baseIdx + 2);
-            mesh.indices.push_back(baseIdx + 3);
+        // Side wall triangles
+        for (int i = 0; i < segments; i++) {
+            int idx = sideStartIdx + i * 2;
+            mesh.indices.push_back(idx);
+            mesh.indices.push_back(idx + 1);
+            mesh.indices.push_back(idx + 3);
+
+            mesh.indices.push_back(idx);
+            mesh.indices.push_back(idx + 3);
+            mesh.indices.push_back(idx + 2);
         }
 
         mesh.setupMesh();

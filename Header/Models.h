@@ -48,11 +48,11 @@ namespace Geometry {
     // Create a simple hand model
     Mesh createHandModel();
     
-    // Create a watch screen quad
-    Mesh createWatchScreen(float size);
+    // Create a circular watch screen
+    Mesh createWatchScreen(float size, int segments = 32);
 
-    // Create a watch body (black box case)
-    Mesh createWatchBody(float width, float height, float depth);
+    // Create a cylindrical watch body
+    Mesh createWatchBody(float diameter, float depth, int segments = 32);
 
     // Create a road segment
     Mesh createRoadSegment(float width, float length);

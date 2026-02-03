@@ -46,12 +46,28 @@ double g_lastTimeUpdate = 0.0;
 
 // Resources
 unsigned int g_roadTexture = 0;
+unsigned int g_grassTexture = 0;
 unsigned int g_warningTexture = 0;
 unsigned int g_ecgTexture = 0;
 unsigned int g_batteryTexture = 0;
 unsigned int g_arrowRightTexture = 0;
 
 GLFWcursor* g_heartCursor = nullptr;
+
+// Arrow screen positions for click detection
+glm::vec2 g_leftArrowScreenPos(0.0f);
+glm::vec2 g_rightArrowScreenPos(0.0f);
+float g_arrowClickRadius = 50.0f; // Pixels
+
+// Helper function to project 3D point to screen space
+glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& view, const glm::mat4& proj) {
+    glm::vec4 clipPos = proj * view * glm::vec4(worldPos, 1.0f);
+    if (clipPos.w <= 0.0f) return glm::vec2(-1000.0f); // Behind camera
+    glm::vec3 ndc = glm::vec3(clipPos) / clipPos.w;
+    float screenX = (ndc.x + 1.0f) * 0.5f * wWidth;
+    float screenY = (1.0f - ndc.y) * 0.5f * wHeight; // Flip Y
+    return glm::vec2(screenX, screenY);
+}
 
 // Mouse callback - only move camera when NOT viewing watch
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -79,20 +95,26 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     if (!g_handController || !g_handController->isInViewingMode()) {
         return;
     }
-    
+
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
         double xpos, ypos;
         glfwGetCursorPos(window, &xpos, &ypos);
-        
-        // Simple click regions
-        if (xpos < wWidth / 3.0) {
-            // Left Arrow Area
+        glm::vec2 mousePos((float)xpos, (float)ypos);
+
+        // Check distance to left arrow
+        float distToLeft = glm::length(mousePos - g_leftArrowScreenPos);
+        if (distToLeft < g_arrowClickRadius) {
             if (g_currentScreen == SCREEN_HEART_RATE) g_currentScreen = SCREEN_CLOCK;
             else if (g_currentScreen == SCREEN_BATTERY) g_currentScreen = SCREEN_HEART_RATE;
-        } else if (xpos > 2.0 * wWidth / 3.0) {
-            // Right Arrow Area
+            return;
+        }
+
+        // Check distance to right arrow
+        float distToRight = glm::length(mousePos - g_rightArrowScreenPos);
+        if (distToRight < g_arrowClickRadius) {
             if (g_currentScreen == SCREEN_CLOCK) g_currentScreen = SCREEN_HEART_RATE;
             else if (g_currentScreen == SCREEN_HEART_RATE) g_currentScreen = SCREEN_BATTERY;
+            return;
         }
     }
 }
@@ -157,10 +179,10 @@ void renderQuad(unsigned int shader, unsigned int texture, float x, float y, flo
 }
 
 void renderScreenContent(unsigned int shader, ScreenType screen, double currentTime, const glm::mat4& parentModel, float contentScale = 1.0f) {
-    // Draw white screen background first
+    // Draw white screen background first - sized to fit watch screen (0.25f geometry)
     glm::mat4 bgModel = parentModel;
     bgModel = glm::translate(bgModel, glm::vec3(0.0f, 0.0f, -0.001f)); // Slightly behind content
-    bgModel = glm::scale(bgModel, glm::vec3(0.4f * contentScale, 0.4f * contentScale, 1.0f));
+    bgModel = glm::scale(bgModel, glm::vec3(0.23f, 0.23f, 1.0f)); // Fixed size to fit screen
     glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(bgModel));
     glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 0);
     glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.9f, 0.9f, 0.9f))); // White
@@ -168,28 +190,43 @@ void renderScreenContent(unsigned int shader, ScreenType screen, double currentT
     glUniform3fv(glGetUniformLocation(shader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.1f)));
     glUniform1f(glGetUniformLocation(shader, "uMaterial.shine"), 4.0f);
 
-    // Draw background quad
+    // Draw circular background
     static unsigned int bgVAO = 0;
+    static int bgVertexCount = 0;
     if (bgVAO == 0) {
-        float vertices[] = {
-            -0.5f, -0.5f, 0.0f,
-             0.5f, -0.5f, 0.0f,
-             0.5f,  0.5f, 0.0f,
-            -0.5f, -0.5f, 0.0f,
-             0.5f,  0.5f, 0.0f,
-            -0.5f,  0.5f, 0.0f
-        };
+        const int segments = 32;
+        std::vector<float> vertices;
+        // Center vertex
+        vertices.push_back(0.0f); vertices.push_back(0.0f); vertices.push_back(0.0f);
+        // Edge vertices
+        for (int i = 0; i <= segments; i++) {
+            float angle = (float)i / (float)segments * 2.0f * 3.14159265f;
+            vertices.push_back(0.5f * cos(angle));
+            vertices.push_back(0.5f * sin(angle));
+            vertices.push_back(0.0f);
+        }
+        // Create triangle fan indices as vertex data
+        std::vector<float> fanVertices;
+        for (int i = 1; i <= segments; i++) {
+            // Center
+            fanVertices.push_back(vertices[0]); fanVertices.push_back(vertices[1]); fanVertices.push_back(vertices[2]);
+            // Current edge
+            fanVertices.push_back(vertices[i*3]); fanVertices.push_back(vertices[i*3+1]); fanVertices.push_back(vertices[i*3+2]);
+            // Next edge
+            fanVertices.push_back(vertices[(i+1)*3]); fanVertices.push_back(vertices[(i+1)*3+1]); fanVertices.push_back(vertices[(i+1)*3+2]);
+        }
+        bgVertexCount = segments * 3;
         unsigned int bgVBO;
         glGenVertexArrays(1, &bgVAO);
         glGenBuffers(1, &bgVBO);
         glBindVertexArray(bgVAO);
         glBindBuffer(GL_ARRAY_BUFFER, bgVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, fanVertices.size() * sizeof(float), fanVertices.data(), GL_STATIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
     }
     glBindVertexArray(bgVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glDrawArrays(GL_TRIANGLES, 0, bgVertexCount);
     glBindVertexArray(0);
 
     // Scale all positions and sizes by contentScale
@@ -313,6 +350,7 @@ int main() {
     unsigned int phongShader = createShader("phong.vert", "phong.frag");
 
     g_roadTexture = loadImageToTexture("Resources/road.jpg");
+    g_grassTexture = loadImageToTexture("Resources/grass.jpg");
     g_warningTexture = loadImageToTexture("Resources/textures/warning.png");
     g_ecgTexture = loadImageToTexture("Resources/textures/ecg_wave.png");
     g_batteryTexture = loadImageToTexture("Resources/textures/battery.png");
@@ -333,10 +371,10 @@ int main() {
     // Extended ground plane to accommodate more buildings
     Mesh groundPlane = Geometry::createGroundPlane(80.0f, 250.0f, 40);
     Mesh handModel = Geometry::createHandModel();
-    // Watch screen for display - smaller
-    Mesh watchScreen = Geometry::createWatchScreen(0.25f);
-    // Black watch body/case around the screen - smaller
-    Mesh watchBody = Geometry::createWatchBody(0.3f, 0.3f, 0.04f);
+    // Circular watch screen for display
+    Mesh watchScreen = Geometry::createWatchScreen(0.25f, 32);
+    // Cylindrical watch body/case around the screen
+    Mesh watchBody = Geometry::createWatchBody(0.3f, 0.04f, 32);
     // Wider road for better perspective
     Mesh roadSegment = Geometry::createRoadSegment(8.0f, 15.0f);
     
@@ -431,24 +469,26 @@ int main() {
         glUniform3fv(glGetUniformLocation(phongShader, "uWatchLight.kS"), 1, glm::value_ptr(watchLightSpecular));
         glUniform1i(glGetUniformLocation(phongShader, "uUseWatchLight"), g_handController->isInViewingMode() ? 1 : 0);
         
-        // Render Ground - with proper material for outdoor ground
+        // Render Ground - grass texture for the surrounding area
         glm::mat4 groundModel = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(groundModel));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.7f, 0.65f, 0.55f)));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.3f, 0.28f, 0.25f)));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.1f, 0.1f, 0.1f)));
-        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 4.0f);
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.5f, 0.7f, 0.4f))); // Greenish tint
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.2f, 0.3f, 0.15f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.05f, 0.05f, 0.05f)));
+        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 2.0f);
         glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 1);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, g_roadTexture);
+        glBindTexture(GL_TEXTURE_2D, g_grassTexture);
         glUniform1i(glGetUniformLocation(phongShader, "uTexture"), 0);
         groundPlane.draw();
         
-        // Render Road Segments - darker asphalt-like material
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.4f, 0.4f, 0.42f)));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.15f, 0.15f, 0.17f)));
-        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.15f, 0.15f, 0.15f)));
-        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 8.0f);
+        // Render Road Segments - with road texture
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.6f, 0.6f, 0.6f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.25f, 0.25f, 0.25f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.1f, 0.1f, 0.1f)));
+        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 4.0f);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, g_roadTexture);
         for (float zPos : g_runningSimulation->getSegmentPositions()) {
             glm::mat4 segmentModel = glm::mat4(1.0f);
             segmentModel = glm::translate(segmentModel, glm::vec3(0.0f, 0.01f, zPos));
@@ -484,7 +524,7 @@ int main() {
 
         // Watch position - at the START of hand (wrist area), rotated to face camera
         glm::mat4 watchM = handM;
-        watchM = glm::translate(watchM, glm::vec3(-0.15f, 0.1f, -0.05f)); // On top of wrist, at start of hand
+        watchM = glm::translate(watchM, glm::vec3(-0.15f, 0.0f, -0.05f)); // On top of wrist, at start of hand
         // Rotate -90 degrees around X axis so screen faces UP (toward camera), parallel to arm length
         watchM = glm::rotate(watchM, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
@@ -500,8 +540,14 @@ int main() {
         glm::mat4 screenM = watchM;
         screenM = glm::translate(screenM, glm::vec3(0.0f, 0.0f, 0.021f)); // Front of watch body
 
-        // Scale content for watch screen - smaller
-        float contentScale = 0.9f;
+        // Scale content for watch screen - sized to fit within watch body
+        float contentScale = 0.55f;
+
+        // Calculate arrow screen positions for click detection
+        glm::vec3 leftArrowWorld = glm::vec3(screenM * glm::vec4(-0.14f * contentScale, 0.0f, 0.01f, 1.0f));
+        glm::vec3 rightArrowWorld = glm::vec3(screenM * glm::vec4(0.14f * contentScale, 0.0f, 0.01f, 1.0f));
+        g_leftArrowScreenPos = projectToScreen(leftArrowWorld, view, projection);
+        g_rightArrowScreenPos = projectToScreen(rightArrowWorld, view, projection);
 
         // Render screen content
         renderScreenContent(phongShader, g_currentScreen, currentTime, screenM, contentScale);
