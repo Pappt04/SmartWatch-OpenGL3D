@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(msbuild:*)"
+      "Bash(msbuild:*)",
+      "Bash(python3:*)"
     ]
   }
 }

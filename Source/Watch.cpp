@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cstdlib>
 
+#include <ctime>
+
 Watch::Watch()
     : digitRenderer(nullptr),
       currentScreen(WATCH_SCREEN_CLOCK),
@@ -38,6 +40,15 @@ void Watch::init() {
     ecgTexture = loadImageToTexture("Resources/textures/ecg_wave.png");
     batteryTexture = loadImageToTexture("Resources/textures/battery.png");
     arrowTexture = loadImageToTexture("Resources/textures/arrow_right.png");
+
+    // Seed clock from current system time
+    time_t now = time(nullptr);
+    struct tm lt;
+    if (localtime_s(&lt, &now) == 0) {
+        hours = lt.tm_hour;
+        minutes = lt.tm_min;
+        seconds = lt.tm_sec;
+    }
 }
 
 void Watch::update(double deltaTime, double currentTime, bool isRunning) {
