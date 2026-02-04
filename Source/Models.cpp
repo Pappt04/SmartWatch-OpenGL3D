@@ -1,8 +1,8 @@
 #include "../Header/Models.h"
 #include <fstream>
-#include <sstream>
 #include <iostream>
-#include <algorithm>
+#include <unordered_map>
+#include <cstdlib>
 
 // Mesh implementation
 void Mesh::setupMesh() {
@@ -57,102 +57,166 @@ Model::~Model() {
 }
 
 void Model::loadModel(const std::string& path) {
-    std::ifstream file(path);
+    // Read entire file into memory in one shot
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         std::cerr << "Failed to open model file: " << path << std::endl;
         return;
     }
-    
-    std::vector<glm::vec3> positions;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec2> texCoords;
-    std::vector<Vertex> vertices;
-    std::vector<unsigned int> indices;
-    
-    std::string line;
-    while (std::getline(file, line)) {
-        processLine(line, positions, normals, texCoords, vertices, indices);
+    std::streamsize fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+    std::vector<char> buf((size_t)fileSize);
+    if (!file.read(buf.data(), fileSize)) {
+        std::cerr << "Failed to read model file: " << path << std::endl;
+        return;
     }
-    
     file.close();
-    
-    // Create mesh from loaded data
+
+    // Heuristic reserves based on file size (avoids repeated reallocations)
+    size_t estLines = (size_t)fileSize / 40;
+    std::vector<glm::vec3> positions;   positions.reserve(estLines);
+    std::vector<glm::vec3> normals;     normals.reserve(estLines / 2);
+    std::vector<glm::vec2> texCoords;   texCoords.reserve(estLines / 2);
+    std::vector<Vertex>    vertices;    vertices.reserve(estLines / 2);
+    std::vector<unsigned int> indices;  indices.reserve(estLines * 3 / 2);
+
+    // Dedup map: key = packed (posIdx, texIdx, normIdx), value = output vertex index
+    std::unordered_map<uint64_t, unsigned int> vertexMap;
+    vertexMap.reserve(estLines);
+
+    const char* p   = buf.data();
+    const char* end = p + fileSize;
+
+    // Helper: skip whitespace (spaces/tabs only, not newlines)
+    auto skipSpaces = [](const char*& ptr, const char* e) {
+        while (ptr < e && (*ptr == ' ' || *ptr == '\t')) ++ptr;
+    };
+
+    // Helper: advance to next line
+    auto nextLine = [](const char*& ptr, const char* e) {
+        while (ptr < e && *ptr != '\n') ++ptr;
+        if (ptr < e) ++ptr; // skip the '\n'
+    };
+
+    while (p < end) {
+        // Skip blank lines and comments
+        if (*p == '#' || *p == '\n' || *p == '\r') { nextLine(p, end); continue; }
+
+        if (*p == 'v') {
+            ++p;
+            if (p < end && *p == 'n') {
+                // "vn" — vertex normal
+                ++p;
+                skipSpaces(p, end);
+                char* np;
+                float x = strtof(p, &np); p = np;
+                float y = strtof(p, &np); p = np;
+                float z = strtof(p, &np); p = np;
+                normals.push_back(glm::vec3(x, y, z));
+                nextLine(p, end);
+            }
+            else if (p < end && *p == 't') {
+                // "vt" — texture coordinate
+                ++p;
+                skipSpaces(p, end);
+                char* np;
+                float u = strtof(p, &np); p = np;
+                float v = strtof(p, &np); p = np;
+                texCoords.push_back(glm::vec2(u, v));
+                nextLine(p, end);
+            }
+            else if (p < end && (*p == ' ' || *p == '\t')) {
+                // "v " — vertex position
+                skipSpaces(p, end);
+                char* np;
+                float x = strtof(p, &np); p = np;
+                float y = strtof(p, &np); p = np;
+                float z = strtof(p, &np); p = np;
+                positions.push_back(glm::vec3(x, y, z));
+                nextLine(p, end);
+            }
+            else {
+                nextLine(p, end); // unknown "v..." token, skip
+            }
+        }
+        else if (*p == 'f' && p + 1 < end && (p[1] == ' ' || p[1] == '\t')) {
+            // "f" — face
+            ++p; // skip 'f'
+
+            unsigned int faceIdx[32]; // max vertices per face before triangulation
+            int faceCount = 0;
+
+            while (true) {
+                skipSpaces(p, end);
+                if (p >= end || *p == '\n' || *p == '\r') break;
+
+                // Parse v/vt/vn — each component is optional after the first
+                char* np;
+                long posIdx  = strtol(p, &np, 10); p = np;
+                long texIdx  = 0;
+                long normIdx = 0;
+
+                if (p < end && *p == '/') {
+                    ++p; // skip first '/'
+                    if (p < end && *p != '/') {
+                        texIdx = strtol(p, &np, 10); p = np;
+                    }
+                    if (p < end && *p == '/') {
+                        ++p; // skip second '/'
+                        normIdx = strtol(p, &np, 10); p = np;
+                    }
+                }
+
+                // Convert negative (relative) indices
+                if (posIdx  < 0) posIdx  = (long)positions.size()  + posIdx  + 1;
+                if (texIdx  < 0) texIdx  = (long)texCoords.size()  + texIdx  + 1;
+                if (normIdx < 0) normIdx = (long)normals.size()    + normIdx + 1;
+
+                // Pack into a single 64-bit key (20 bits each is enough for ~1 M entries)
+                uint64_t key = ((uint64_t)(unsigned)posIdx  << 40) |
+                               ((uint64_t)(unsigned)texIdx  << 20) |
+                                (uint64_t)(unsigned)normIdx;
+
+                auto it = vertexMap.find(key);
+                if (it != vertexMap.end()) {
+                    faceIdx[faceCount++] = it->second;
+                } else {
+                    Vertex vertex;
+                    vertex.position   = (posIdx > 0 && posIdx <= (long)positions.size())
+                                        ? positions[posIdx - 1]  : glm::vec3(0.0f);
+                    vertex.normal     = (normIdx > 0 && normIdx <= (long)normals.size())
+                                        ? normals[normIdx - 1]   : glm::vec3(0.0f, 1.0f, 0.0f);
+                    vertex.texCoords  = (texIdx > 0 && texIdx <= (long)texCoords.size())
+                                        ? texCoords[texIdx - 1]  : glm::vec2(0.0f);
+
+                    unsigned int idx = (unsigned int)vertices.size();
+                    vertices.push_back(vertex);
+                    vertexMap[key] = idx;
+                    faceIdx[faceCount++] = idx;
+                }
+
+                if (faceCount >= 32) break; // safety guard
+            }
+            nextLine(p, end);
+
+            // Fan triangulation (convex polygons)
+            for (int i = 1; i + 1 < faceCount; i++) {
+                indices.push_back(faceIdx[0]);
+                indices.push_back(faceIdx[i]);
+                indices.push_back(faceIdx[i + 1]);
+            }
+        }
+        else {
+            nextLine(p, end); // skip any other line (mtllib, usemtl, o, s, …)
+        }
+    }
+
     if (!vertices.empty()) {
         Mesh mesh;
-        mesh.vertices = vertices;
-        mesh.indices = indices;
+        mesh.vertices = std::move(vertices);
+        mesh.indices  = std::move(indices);
         mesh.setupMesh();
-        meshes.push_back(mesh);
-    }
-}
-
-void Model::processLine(const std::string& line,
-                       std::vector<glm::vec3>& positions,
-                       std::vector<glm::vec3>& normals,
-                       std::vector<glm::vec2>& texCoords,
-                       std::vector<Vertex>& vertices,
-                       std::vector<unsigned int>& indices) {
-    if (line.empty() || line[0] == '#') return;
-    
-    std::istringstream iss(line);
-    std::string prefix;
-    iss >> prefix;
-    
-    if (prefix == "v") {
-        // Vertex position
-        glm::vec3 pos;
-        iss >> pos.x >> pos.y >> pos.z;
-        positions.push_back(pos);
-    }
-    else if (prefix == "vn") {
-        // Vertex normal
-        glm::vec3 normal;
-        iss >> normal.x >> normal.y >> normal.z;
-        normals.push_back(normal);
-    }
-    else if (prefix == "vt") {
-        // Texture coordinate
-        glm::vec2 tex;
-        iss >> tex.x >> tex.y;
-        texCoords.push_back(tex);
-    }
-    else if (prefix == "f") {
-        // Face
-        std::string vertexData;
-        std::vector<unsigned int> faceIndices;
-        
-        while (iss >> vertexData) {
-            std::replace(vertexData.begin(), vertexData.end(), '/', ' ');
-            std::istringstream viss(vertexData);
-            
-            int posIdx = 0, texIdx = 0, normIdx = 0;
-            viss >> posIdx >> texIdx >> normIdx;
-            
-            Vertex vertex;
-            if (posIdx > 0 && posIdx <= positions.size()) {
-                vertex.position = positions[posIdx - 1];
-            }
-            if (normIdx > 0 && normIdx <= normals.size()) {
-                vertex.normal = normals[normIdx - 1];
-            } else {
-                vertex.normal = glm::vec3(0.0f, 1.0f, 0.0f);  // Default normal
-            }
-            if (texIdx > 0 && texIdx <= texCoords.size()) {
-                vertex.texCoords = texCoords[texIdx - 1];
-            } else {
-                vertex.texCoords = glm::vec2(0.0f, 0.0f);  // Default tex coords
-            }
-            
-            vertices.push_back(vertex);
-            faceIndices.push_back(vertices.size() - 1);
-        }
-        
-        // Triangulate face (assuming convex polygons)
-        for (size_t i = 1; i + 1 < faceIndices.size(); i++) {
-            indices.push_back(faceIndices[0]);
-            indices.push_back(faceIndices[i]);
-            indices.push_back(faceIndices[i + 1]);
-        }
+        meshes.push_back(std::move(mesh));
     }
 }
 

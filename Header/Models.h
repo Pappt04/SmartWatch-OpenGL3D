@@ -26,12 +26,6 @@ private:
     std::string directory;
     
     void loadModel(const std::string& path);
-    void processLine(const std::string& line, 
-                    std::vector<glm::vec3>& positions,
-                    std::vector<glm::vec3>& normals,
-                    std::vector<glm::vec2>& texCoords,
-                    std::vector<Vertex>& vertices,
-                    std::vector<unsigned int>& indices);
     
 public:
     Model(const std::string& path);

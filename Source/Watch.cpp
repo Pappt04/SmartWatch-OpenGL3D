@@ -1,10 +1,10 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include "../Header/Watch.h"
 #include "../Header/Util.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 #include <cstdlib>
-
 #include <ctime>
 
 Watch::Watch()
@@ -43,11 +43,11 @@ void Watch::init() {
 
     // Seed clock from current system time
     time_t now = time(nullptr);
-    struct tm lt;
-    if (localtime_s(&lt, &now) == 0) {
-        hours = lt.tm_hour;
-        minutes = lt.tm_min;
-        seconds = lt.tm_sec;
+    struct tm* lt = localtime(&now);
+    if (lt) {
+        hours   = lt->tm_hour;
+        minutes = lt->tm_min;
+        seconds = lt->tm_sec;
     }
 }
 
@@ -213,7 +213,7 @@ void Watch::renderBatteryScreen(unsigned int shader, const glm::mat4& parentMode
 
     glm::mat4 model = parentModel;
     model = glm::translate(model, glm::vec3(-0.065f * s + barWidth/2.0f, 0.0f, 0.02f));
-    model = glm::scale(model, glm::vec3(barWidth, 0.065f * s, 1.0f));
+    model = glm::scale(model, glm::vec3(barWidth, 0.04f * s, 1.0f));
 
     glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(model));
     glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 0);
