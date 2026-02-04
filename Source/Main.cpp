@@ -182,7 +182,7 @@ int main() {
     glfwSetCursorPosCallback(window, mouseCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetKeyCallback(window, keyCallback);
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 
     if (glewInit() != GLEW_OK) return -1;
 
@@ -254,6 +254,17 @@ int main() {
         g_hand->update(deltaTime, camPos);
         g_street->update(deltaTime, g_isRunning);
         g_watch->update(deltaTime, currentTime, g_isRunning);
+
+        // Cursor visibility: hidden normally, heart when viewing watch,
+        // disabled (captured) in free-camera so rotation has no edge limit.
+        if (g_freeCameraMode) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        } else if (g_hand && g_hand->isInViewingMode()) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            if (g_heartCursor) glfwSetCursor(window, g_heartCursor);
+        } else {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        }
 
         // Render
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

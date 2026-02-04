@@ -59,15 +59,19 @@ void Camera::moveUp(float speed) {
 
 void Camera::rotate(float xoffset, float yoffset) {
     float sensitivity = 0.1f;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
+    yaw   += xoffset * sensitivity;
+    pitch += yoffset * sensitivity;
 
-    yaw += xoffset;
-    pitch += yoffset;
-
-    // Constrain pitch to avoid flipping
-    if (pitch > 89.0f) pitch = 89.0f;
-    if (pitch < -89.0f) pitch = -89.0f;
+    // When pitch overshoots a pole, reflect it and flip yaw so the camera
+    // smoothly rolls over the top/bottom instead of getting stuck.
+    if (pitch > 90.0f) {
+        pitch = 180.0f - pitch;
+        yaw  += 180.0f;
+    }
+    if (pitch < -90.0f) {
+        pitch = -180.0f - pitch;
+        yaw  += 180.0f;
+    }
 
     updateCameraVectors();
 }
