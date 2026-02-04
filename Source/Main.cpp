@@ -391,6 +391,72 @@ void renderScreenContent(unsigned int shader, ScreenType screen, double currentT
     }
 }
 
+// Render student info overlay in screen space (bottom-left corner)
+void renderStudentInfoOverlay(unsigned int shader, int screenWidth, int screenHeight, DigitRenderer* digitRenderer) {
+    // Set up orthographic projection for 2D overlay
+    glm::mat4 orthoProj = glm::ortho(0.0f, (float)screenWidth, 0.0f, (float)screenHeight, -1.0f, 1.0f);
+    glm::mat4 identity = glm::mat4(1.0f);
+
+    glUniformMatrix4fv(glGetUniformLocation(shader, "uV"), 1, GL_FALSE, glm::value_ptr(identity));
+    glUniformMatrix4fv(glGetUniformLocation(shader, "uP"), 1, GL_FALSE, glm::value_ptr(orthoProj));
+
+    // Disable depth test for overlay
+    glDisable(GL_DEPTH_TEST);
+    glUniform1i(glGetUniformLocation(shader, "uUseFog"), 0);
+
+    // Position in bottom-left corner
+    float margin = 20.0f;
+    float textScale = 25.0f;
+
+    // Draw semi-transparent background
+    float bgWidth = 280.0f;
+    float bgHeight = 90.0f;
+    glm::mat4 bgModel = glm::mat4(1.0f);
+    bgModel = glm::translate(bgModel, glm::vec3(margin + bgWidth/2.0f, margin + bgHeight/2.0f, -0.1f));
+    bgModel = glm::scale(bgModel, glm::vec3(bgWidth, bgHeight, 1.0f));
+    glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(bgModel));
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.0f, 0.0f, 0.0f)));
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.15f, 0.15f, 0.2f)));
+    glUniform3fv(glGetUniformLocation(shader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.0f)));
+    glUniform1i(glGetUniformLocation(shader, "uUseTexture"), 0);
+
+    // Draw background quad
+    static unsigned int bgVAO = 0;
+    if (bgVAO == 0) {
+        float vertices[] = {
+            -0.5f, -0.5f, 0.0f,
+             0.5f, -0.5f, 0.0f,
+             0.5f,  0.5f, 0.0f,
+            -0.5f, -0.5f, 0.0f,
+             0.5f,  0.5f, 0.0f,
+            -0.5f,  0.5f, 0.0f
+        };
+        unsigned int bgVBO;
+        glGenVertexArrays(1, &bgVAO);
+        glGenBuffers(1, &bgVBO);
+        glBindVertexArray(bgVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, bgVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+    }
+    glBindVertexArray(bgVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+
+    // Draw text using DigitRenderer
+    glm::vec3 textColor(0.0f, 1.0f, 0.5f); // Green text
+
+    // Line 1: "PAPP TAMAS"
+    digitRenderer->drawText("papp tamas", margin + 10.0f, margin + 55.0f, textScale, textColor, shader, identity);
+
+    // Line 2: "RA-4-2022"
+    digitRenderer->drawText("ra-4-2022", margin + 10.0f, margin + 20.0f, textScale, textColor, shader, identity);
+
+    // Re-enable depth test
+    glEnable(GL_DEPTH_TEST);
+}
+
 int main() {
     if (!glfwInit()) return endProgram("GLFW failed to initialize");
 
@@ -694,7 +760,10 @@ int main() {
 
         // Render screen content
         renderScreenContent(phongShader, g_currentScreen, currentTime, screenM, contentScale);
-        
+
+        // Render student info overlay in corner of screen
+        renderStudentInfoOverlay(phongShader, wWidth, wHeight, g_digitRenderer);
+
         glfwSwapBuffers(window);
         glfwPollEvents();
 
