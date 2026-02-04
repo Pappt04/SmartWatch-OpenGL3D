@@ -6,6 +6,12 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
+#include <thread>
+#include <chrono>
+
+// FPS limiting
+const int TARGET_FPS = 75;
+const double TARGET_FRAME_TIME = 1.0 / TARGET_FPS;
 
 #include "../Header/Util.h"
 #include "../Header/Camera.h"
@@ -387,14 +393,24 @@ void renderScreenContent(unsigned int shader, ScreenType screen, double currentT
 
 int main() {
     if (!glfwInit()) return endProgram("GLFW failed to initialize");
-    
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    
-    GLFWwindow* window = glfwCreateWindow(wWidth, wHeight, "SmartWatch3D", NULL, NULL);
+
+    // Get primary monitor for fullscreen
+    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* videoMode = glfwGetVideoMode(primaryMonitor);
+    wWidth = videoMode->width;
+    wHeight = videoMode->height;
+
+    // Create fullscreen window
+    GLFWwindow* window = glfwCreateWindow(wWidth, wHeight, "SmartWatch3D", primaryMonitor, NULL);
     if (!window) return endProgram("Window creation failed");
     glfwMakeContextCurrent(window);
+
+    // Disable vsync (we'll control FPS manually)
+    glfwSwapInterval(0);
     
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
@@ -681,8 +697,16 @@ int main() {
         
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        // FPS limiting - wait if frame was too fast
+        double frameEndTime = glfwGetTime();
+        double frameTime = frameEndTime - (currentTime - deltaTime);
+        if (frameTime < TARGET_FRAME_TIME) {
+            double sleepTime = TARGET_FRAME_TIME - frameTime;
+            std::this_thread::sleep_for(std::chrono::microseconds((int)(sleepTime * 1000000)));
+        }
     }
-    
+
     // Cleanup
     groundPlane.cleanup();
     delete armModel;
