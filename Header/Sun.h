@@ -8,7 +8,7 @@ public:
     Sun();
     ~Sun();
 
-    void init(const char* modelPath, const char* texturePath);
+    void init(const char* texturePath);
     void render(const ShaderUniforms& uniforms) const;
 
     glm::vec3 getPosition() const { return position; }
@@ -19,7 +19,8 @@ public:
     void setPosition(const glm::vec3& pos) { position = pos; }
 
 private:
-    Model* model;
+    Mesh sunMesh;
+    bool meshReady;
     unsigned int texture;
     glm::vec3 position;
     float scale;

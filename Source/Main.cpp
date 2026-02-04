@@ -189,7 +189,7 @@ int main() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(0.45f, 0.55f, 0.7f, 1.0f);
+    glClearColor(0.07f, 0.08f, 0.12f, 1.0f);
 
     // Create shader and cache uniform locations
     unsigned int shader = createShader("phong.vert", "phong.frag");
@@ -203,7 +203,7 @@ int main() {
     g_camera = new Camera(glm::vec3(0.0f, 1.4f, 0.0f), (float)g_width / (float)g_height);
 
     g_sun = new Sun();
-    g_sun->init("Resources/sun/sol.obj", "Resources/sun/2k_sun.jpg");
+    g_sun->init("Resources/sun/2k_sun.jpg");
 
     g_street = new Street();
     g_street->init(8.0f, 15.0f, 12);
@@ -283,14 +283,14 @@ int main() {
         glUniform1i(g_uniforms.uUseWatchLight, g_hand->isInViewingMode() ? 1 : 0);
 
         // Set fog
-        g_uniforms.setFog(true, glm::vec3(0.45f, 0.55f, 0.7f), 0.00025f);
+        g_uniforms.setFog(true, glm::vec3(0.07f, 0.08f, 0.12f), 0.00025f);
 
         // Render street (ground, road, buildings)
         g_street->render(g_uniforms);
 
-        // Render sun (no fog)
+        // Render sun (no fog, emissive)
         g_sun->render(g_uniforms);
-        g_uniforms.setFog(true, glm::vec3(0.45f, 0.55f, 0.7f), 0.00025f);
+        g_uniforms.setFog(true, glm::vec3(0.07f, 0.08f, 0.12f), 0.00025f);
 
         // Render hand and watch (no fog - close to camera)
         g_uniforms.setFog(false);

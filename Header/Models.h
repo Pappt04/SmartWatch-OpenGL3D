@@ -56,4 +56,7 @@ namespace Geometry {
 
     // Create a road segment
     Mesh createRoadSegment(float width, float length);
+
+    // Create a UV sphere (radius 1.0, centred at origin)
+    Mesh createSphere(int latSegments = 32, int lonSegments = 32);
 }

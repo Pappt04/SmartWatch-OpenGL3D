@@ -376,30 +376,72 @@ namespace Geometry {
 
     Mesh createRoadSegment(float width, float length) {
         Mesh mesh;
-        
+
         float halfWidth = width / 2.0f;
-        
+
         Vertex v0, v1, v2, v3;
-        
+
         v0.position = glm::vec3(-halfWidth, 0.0f, 0.0f);
         v0.normal = glm::vec3(0.0f, 1.0f, 0.0f);
         v0.texCoords = glm::vec2(0.0f, 0.0f);
-        
+
         v1.position = glm::vec3(halfWidth, 0.0f, 0.0f);
         v1.normal = glm::vec3(0.0f, 1.0f, 0.0f);
         v1.texCoords = glm::vec2(0.0f, 1.0f);
-        
+
         v2.position = glm::vec3(halfWidth, 0.0f, -length);
         v2.normal = glm::vec3(0.0f, 1.0f, 0.0f);
         v2.texCoords = glm::vec2(1.0f, 1.0f);
-        
+
         v3.position = glm::vec3(-halfWidth, 0.0f, -length);
         v3.normal = glm::vec3(0.0f, 1.0f, 0.0f);
         v3.texCoords = glm::vec2(1.0f, 0.0f);
-        
+
         mesh.vertices = {v0, v1, v2, v3};
         mesh.indices = {0, 1, 2, 0, 2, 3};
-        
+
+        mesh.setupMesh();
+        return mesh;
+    }
+
+    Mesh createSphere(int latSegs, int lonSegs) {
+        Mesh mesh;
+
+        for (int i = 0; i <= latSegs; i++) {
+            float theta    = 3.14159265f * (float)i / (float)latSegs;
+            float sinTheta = sinf(theta);
+            float cosTheta = cosf(theta);
+
+            for (int j = 0; j <= lonSegs; j++) {
+                float phi    = 2.0f * 3.14159265f * (float)j / (float)lonSegs;
+                float sinPhi = sinf(phi);
+                float cosPhi = cosf(phi);
+
+                Vertex v;
+                v.position  = glm::vec3(sinTheta * cosPhi, cosTheta, sinTheta * sinPhi);
+                v.normal    = v.position;   // unit sphere: normal == position
+                v.texCoords = glm::vec2((float)j / (float)lonSegs, (float)i / (float)latSegs);
+                mesh.vertices.push_back(v);
+            }
+        }
+
+        for (int i = 0; i < latSegs; i++) {
+            for (int j = 0; j < lonSegs; j++) {
+                int v1 = i * (lonSegs + 1) + j;
+                int v2 = v1 + 1;
+                int v3 = (i + 1) * (lonSegs + 1) + j;
+                int v4 = v3 + 1;
+
+                mesh.indices.push_back(v1);
+                mesh.indices.push_back(v3);
+                mesh.indices.push_back(v2);
+
+                mesh.indices.push_back(v2);
+                mesh.indices.push_back(v3);
+                mesh.indices.push_back(v4);
+            }
+        }
+
         mesh.setupMesh();
         return mesh;
     }
