@@ -135,6 +135,10 @@
     <ClCompile Include="Source\Models.cpp" />
     <ClCompile Include="Source\RunningSimulation.cpp" />
     <ClCompile Include="Source\DigitRenderer.cpp" />
+    <ClCompile Include="Source\Sun.cpp" />
+    <ClCompile Include="Source\Street.cpp" />
+    <ClCompile Include="Source\Hand.cpp" />
+    <ClCompile Include="Source\Watch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Header\stb_image.h" />
@@ -144,6 +148,11 @@
     <ClInclude Include="Header\Models.h" />
     <ClInclude Include="Header\RunningSimulation.h" />
     <ClInclude Include="Header\DigitRenderer.h" />
+    <ClInclude Include="Header\ShaderUniforms.h" />
+    <ClInclude Include="Header\Sun.h" />
+    <ClInclude Include="Header\Street.h" />
+    <ClInclude Include="Header\Hand.h" />
+    <ClInclude Include="Header\Watch.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
