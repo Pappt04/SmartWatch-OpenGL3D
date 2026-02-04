@@ -51,6 +51,7 @@ unsigned int g_ecgTexture = 0;
 unsigned int g_batteryTexture = 0;
 unsigned int g_arrowRightTexture = 0;
 unsigned int g_armTexture = 0;
+unsigned int g_sunTexture = 0;
 
 GLFWcursor* g_heartCursor = nullptr;
 
@@ -402,6 +403,7 @@ int main() {
     g_batteryTexture = loadImageToTexture("Resources/textures/battery.png");
     g_arrowRightTexture = loadImageToTexture("Resources/textures/arrow_right.png");
     g_armTexture = loadImageToTexture("Resources/arm/arm.jpg");
+    g_sunTexture = loadImageToTexture("Resources/sun/2k_sun.jpg");
     g_heartCursor = loadImageToCursor("Resources/textures/red_heart_cursor.png");
 
     // Set heart cursor always
@@ -419,6 +421,8 @@ int main() {
     Mesh groundPlane = Geometry::createGroundPlane(200.0f, 400.0f, 50);
     // Load arm model from OBJ file
     Model* armModel = new Model("Resources/arm/arm.obj");
+    // Load sun model from OBJ file
+    Model* sunModel = new Model("Resources/sun/sol.obj");
     // Circular watch screen for display
     Mesh watchScreen = Geometry::createWatchScreen(0.25f, 32);
     // Cylindrical watch body/case around the screen
@@ -437,8 +441,8 @@ int main() {
     // Building models loaded above
     // Building placement managed by RunningSimulation
 
-    // Main sky/sun light - large and elevated for dramatic lighting
-    glm::vec3 lightPos(50.0f, 100.0f, 30.0f); // High in the sky, slightly behind camera
+    // Main sky/sun light - positioned in front of camera, visible in sky
+    glm::vec3 lightPos(-30.0f, 80.0f, -150.0f); // High in the sky, in front of camera
     glm::vec3 lightAmbient(0.25f, 0.25f, 0.28f); // Slightly blue ambient for outdoor feel
     glm::vec3 lightDiffuse(1.0f, 0.95f, 0.85f); // Warm sunlight
     glm::vec3 lightSpecular(1.0f, 1.0f, 0.9f);
@@ -536,7 +540,27 @@ int main() {
         glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 2.0f);
         glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 0);
         groundPlane.draw();
-        
+
+        // Render Sun at the light source position (no fog for sun)
+        glUniform1i(glGetUniformLocation(phongShader, "uUseFog"), 0);
+        glm::mat4 sunTransform = glm::mat4(1.0f);
+        sunTransform = glm::translate(sunTransform, lightPos); // Position at light source
+        sunTransform = glm::scale(sunTransform, glm::vec3(25.0f)); // Scale sun to be visible in sky
+        glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(sunTransform));
+        // Bright emissive sun material
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(1.0f, 0.9f, 0.7f)));
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(1.0f, 0.95f, 0.8f))); // High ambient for glow
+        glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.0f)));
+        glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 1.0f);
+        // Use sun texture
+        glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 1);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, g_sunTexture);
+        glUniform1i(glGetUniformLocation(phongShader, "uTexture"), 0);
+        sunModel->draw();
+        glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 0);
+        glUniform1i(glGetUniformLocation(phongShader, "uUseFog"), 1); // Re-enable fog for other objects
+
         // Render Road Segments - with road texture
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.6f, 0.6f, 0.6f)));
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.25f, 0.25f, 0.25f)));
@@ -578,7 +602,7 @@ int main() {
         // Transform arm model - rotate so elbow is at bottom, move back
         glm::mat4 armTransform = handM;
         armTransform = glm::translate(armTransform, glm::vec3(0.0f, 0.0f, 0.3f)); // Move back (less in front)
-        armTransform = glm::rotate(armTransform, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // Rotate so elbow is at bottom
+        armTransform = glm::rotate(armTransform, glm::radians(180.0f), glm::vec3(0.0f, 0.1f, 1.0f)); // Rotate so elbow is at bottom
         armTransform = glm::scale(armTransform, glm::vec3(0.02f)); // Scale to fit scene
 
         glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(armTransform));
@@ -628,6 +652,7 @@ int main() {
     // Cleanup
     groundPlane.cleanup();
     delete armModel;
+    delete sunModel;
     watchScreen.cleanup();
     watchBody.cleanup();
     roadSegment.cleanup();
