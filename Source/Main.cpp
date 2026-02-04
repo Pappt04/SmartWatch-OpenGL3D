@@ -1,4 +1,3 @@
-﻿#define STB_IMAGE_IMPLEMENTATION
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -51,6 +50,7 @@ unsigned int g_warningTexture = 0;
 unsigned int g_ecgTexture = 0;
 unsigned int g_batteryTexture = 0;
 unsigned int g_arrowRightTexture = 0;
+unsigned int g_armTexture = 0;
 
 GLFWcursor* g_heartCursor = nullptr;
 
@@ -401,6 +401,7 @@ int main() {
     g_ecgTexture = loadImageToTexture("Resources/textures/ecg_wave.png");
     g_batteryTexture = loadImageToTexture("Resources/textures/battery.png");
     g_arrowRightTexture = loadImageToTexture("Resources/textures/arrow_right.png");
+    g_armTexture = loadImageToTexture("Resources/arm/arm.jpg");
     g_heartCursor = loadImageToCursor("Resources/textures/red_heart_cursor.png");
 
     // Set heart cursor always
@@ -416,7 +417,8 @@ int main() {
 
     // Large ground plane extending to horizon with fog fade
     Mesh groundPlane = Geometry::createGroundPlane(200.0f, 400.0f, 50);
-    Mesh handModel = Geometry::createHandModel();
+    // Load arm model from OBJ file
+    Model* armModel = new Model("Resources/arm/arm.obj");
     // Circular watch screen for display
     Mesh watchScreen = Geometry::createWatchScreen(0.25f, 32);
     // Cylindrical watch body/case around the screen
@@ -571,16 +573,25 @@ int main() {
         // Disable fog for hand and watch (they're close to camera)
         glUniform1i(glGetUniformLocation(phongShader, "uUseFog"), 0);
 
-        // Render Hand - skin-like material
+        // Render Arm - with skin-like color
         glm::mat4 handM = g_handController->getTransformMatrix();
-        glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(handM));
+        // Transform arm model - rotate so elbow is at bottom, move back
+        glm::mat4 armTransform = handM;
+        armTransform = glm::translate(armTransform, glm::vec3(0.0f, 0.0f, 0.3f)); // Move back (less in front)
+        armTransform = glm::rotate(armTransform, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // Rotate so elbow is at bottom
+        armTransform = glm::scale(armTransform, glm::vec3(0.02f)); // Scale to fit scene
+
+        glUniformMatrix4fv(glGetUniformLocation(phongShader, "uM"), 1, GL_FALSE, glm::value_ptr(armTransform));
+        // Skin-like material colors
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kD"), 1, glm::value_ptr(glm::vec3(0.85f, 0.72f, 0.62f)));
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kA"), 1, glm::value_ptr(glm::vec3(0.4f, 0.32f, 0.28f)));
         glUniform3fv(glGetUniformLocation(phongShader, "uMaterial.kS"), 1, glm::value_ptr(glm::vec3(0.25f, 0.22f, 0.2f)));
         glUniform1f(glGetUniformLocation(phongShader, "uMaterial.shine"), 12.0f);
-        handModel.draw();
+        // Render with skin color (no texture for now)
+        glUniform1i(glGetUniformLocation(phongShader, "uUseTexture"), 0);
+        armModel->draw();
 
-        // Watch position - at the START of hand (wrist area), rotated to face camera
+        // Watch position - at the wrist area (same as original cube)
         glm::mat4 watchM = handM;
         watchM = glm::translate(watchM, glm::vec3(-0.15f, 0.0f, -0.05f)); // On top of wrist, at start of hand
         // Rotate -90 degrees around X axis so screen faces UP (toward camera), parallel to arm length
@@ -616,7 +627,7 @@ int main() {
     
     // Cleanup
     groundPlane.cleanup();
-    handModel.cleanup();
+    delete armModel;
     watchScreen.cleanup();
     watchBody.cleanup();
     roadSegment.cleanup();
