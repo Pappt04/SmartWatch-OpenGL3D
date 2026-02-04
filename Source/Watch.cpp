@@ -91,7 +91,8 @@ void Watch::render(const ShaderUniforms& uniforms, const glm::mat4& handMatrix, 
     watchM = glm::translate(watchM, watchOffset);
     watchM = glm::rotate(watchM, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    // Render watch body
+    // Render watch body — disable watch light so only the screen glows, not the case
+    glUniform1i(glGetUniformLocation(shader, "uUseWatchLight"), 0);
     uniforms.setModelMatrix(watchM);
     uniforms.setMaterial(
         glm::vec3(0.02f),  // kD - very dark
@@ -101,6 +102,9 @@ void Watch::render(const ShaderUniforms& uniforms, const glm::mat4& handMatrix, 
     );
     uniforms.setTexture(false);
     watchBody.draw();
+
+    // Re-enable watch light for the screen and everything after
+    glUniform1i(glGetUniformLocation(shader, "uUseWatchLight"), 1);
 
     // Render watch screen (slightly in front)
     glm::mat4 screenM = watchM;
