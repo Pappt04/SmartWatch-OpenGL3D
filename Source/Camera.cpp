@@ -45,6 +45,33 @@ void Camera::moveVertical(float offset) {
     if (position.y > 1.8f) position.y = 1.8f;
 }
 
+void Camera::moveForward(float speed) {
+    position += front * speed;
+}
+
+void Camera::moveRight(float speed) {
+    position += right * speed;
+}
+
+void Camera::moveUp(float speed) {
+    position += worldUp * speed;
+}
+
+void Camera::rotate(float xoffset, float yoffset) {
+    float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw += xoffset;
+    pitch += yoffset;
+
+    // Constrain pitch to avoid flipping
+    if (pitch > 89.0f) pitch = 89.0f;
+    if (pitch < -89.0f) pitch = -89.0f;
+
+    updateCameraVectors();
+}
+
 void Camera::updateBobbing(double deltaTime, bool isRunning) {
     if (isRunning) {
         static float bobbingTime = 0.0f;

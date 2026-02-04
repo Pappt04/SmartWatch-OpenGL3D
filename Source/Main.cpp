@@ -21,9 +21,11 @@ HandController* g_handController = nullptr;
 RunningSimulation* g_runningSimulation = nullptr;
 DigitRenderer* g_digitRenderer = nullptr;
 
+double g_lastMouseX = 0.0;
 double g_lastMouseY = 0.0;
 bool g_firstMouse = true;
 bool g_isRunning = false;
+bool g_freeCameraMode = false;
 
 // Screen state
 enum ScreenType {
@@ -70,24 +72,33 @@ glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& view, cons
     return glm::vec2(screenX, screenY);
 }
 
-// Mouse callback - only move camera when NOT viewing watch
+// Mouse callback - handle camera movement
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-    // When viewing watch, don't process mouse movement for camera
-    if (g_handController && g_handController->isInViewingMode()) {
+    // When viewing watch and not in free camera mode, don't process mouse movement
+    if (g_handController && g_handController->isInViewingMode() && !g_freeCameraMode) {
         return;
     }
 
     if (g_firstMouse) {
+        g_lastMouseX = xpos;
         g_lastMouseY = ypos;
         g_firstMouse = false;
         return;
     }
 
-    double yoffset = g_lastMouseY - ypos;
+    double xoffset = xpos - g_lastMouseX;
+    double yoffset = g_lastMouseY - ypos; // Reversed since y-coords go from bottom to top
+    g_lastMouseX = xpos;
     g_lastMouseY = ypos;
 
     if (g_camera) {
-        g_camera->moveVertical(yoffset * 0.005f);
+        if (g_freeCameraMode) {
+            // Free camera mode - rotate in any direction
+            g_camera->rotate((float)xoffset, (float)yoffset);
+        } else {
+            // Normal mode - only vertical movement
+            g_camera->moveVertical((float)yoffset * 0.005f);
+        }
     }
 }
 
@@ -128,6 +139,11 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             // Reset mouse tracking to prevent camera jump
             g_firstMouse = true;
         }
+    }
+
+    if (key == GLFW_KEY_K && action == GLFW_PRESS) {
+        g_freeCameraMode = !g_freeCameraMode;
+        g_firstMouse = true; // Reset mouse tracking to prevent jump
     }
 
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
@@ -458,8 +474,26 @@ int main() {
         double currentTime = glfwGetTime();
         double deltaTime = currentTime - lastTime;
         lastTime = currentTime;
-        
-        g_isRunning = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) &&
+
+        // Free camera movement (WASD + Q/E for up/down)
+        if (g_freeCameraMode && g_camera) {
+            float cameraSpeed = 5.0f * (float)deltaTime;
+            if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+                g_camera->moveForward(cameraSpeed);
+            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+                g_camera->moveForward(-cameraSpeed);
+            if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+                g_camera->moveRight(-cameraSpeed);
+            if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+                g_camera->moveRight(cameraSpeed);
+            if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+                g_camera->moveUp(-cameraSpeed);
+            if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+                g_camera->moveUp(cameraSpeed);
+        }
+
+        g_isRunning = !g_freeCameraMode &&
+                      (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) &&
                       (g_currentScreen == SCREEN_HEART_RATE) &&
                       (g_handController->isInViewingMode());
 

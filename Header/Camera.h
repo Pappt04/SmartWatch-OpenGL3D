@@ -33,7 +33,13 @@ public:
     
     // Camera movement (vertical only)
     void moveVertical(float offset);
-    
+
+    // Free camera movement
+    void moveForward(float speed);
+    void moveRight(float speed);
+    void moveUp(float speed);
+    void rotate(float xoffset, float yoffset);
+
     // Running simulation bobbing
     void updateBobbing(double deltaTime, bool isRunning);
     float getBobbingOffset() const { return bobbingOffset; }
