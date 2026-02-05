@@ -90,6 +90,7 @@ void Watch::render(const ShaderUniforms& uniforms, const glm::mat4& handMatrix, 
     glm::mat4 watchM = handMatrix;
     watchM = glm::translate(watchM, watchOffset);
     watchM = glm::rotate(watchM, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    watchM = glm::scale(watchM, glm::vec3(0.35f));
 
     // Render watch body — disable watch light so only the screen glows, not the case
     glUniform1i(glGetUniformLocation(shader, "uUseWatchLight"), 0);

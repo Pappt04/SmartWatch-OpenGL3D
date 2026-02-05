@@ -56,17 +56,18 @@ glm::mat4 HandController::getTransformMatrix() const {
     // Position relative to camera
     model = glm::translate(model, cameraPosition + currentOffset);
 
-    // Rotate hand to face camera when in viewing mode
+    // Rotate hand when in viewing mode
     if (currentState == HAND_STATE_VIEWING || isTransitioning) {
-        float rotationAngle = 0.0f;
+        float t = 0.0f;
         if (isTransitioning && targetState == HAND_STATE_VIEWING) {
-            rotationAngle = transitionProgress * glm::radians(90.0f);
+            t = transitionProgress;
         } else if (isTransitioning && targetState == HAND_STATE_NORMAL) {
-            rotationAngle = (1.0f - transitionProgress) * glm::radians(90.0f);
+            t = 1.0f - transitionProgress;
         } else if (currentState == HAND_STATE_VIEWING) {
-            rotationAngle = glm::radians(90.0f);
+            t = 1.0f;
         }
-        model = glm::rotate(model, rotationAngle, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, t * glm::radians(90.0f),  glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::rotate(model, t * glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     }
 
     return model;

@@ -313,6 +313,7 @@ int main() {
         glm::mat4 handM = g_hand->getTransformMatrix();
         glm::mat4 watchM = glm::translate(handM, glm::vec3(-0.15f, 0.0f, -0.05f));
         watchM = glm::rotate(watchM, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        watchM = glm::scale(watchM, glm::vec3(0.35f));
         glm::mat4 screenM = glm::translate(watchM, glm::vec3(0.0f, 0.0f, 0.021f));
         float contentScale = 0.55f;
 
