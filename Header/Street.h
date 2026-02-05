@@ -24,7 +24,6 @@ private:
 
     unsigned int roadTexture;
 
-    // Cached material properties
     struct {
         glm::vec3 groundKD, groundKA, groundKS;
         float groundShine;

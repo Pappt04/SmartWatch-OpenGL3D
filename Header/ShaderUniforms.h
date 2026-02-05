@@ -3,7 +3,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-// Cached shader uniform locations for performance
 struct ShaderUniforms {
     GLint uM;
     GLint uV;
@@ -53,7 +52,6 @@ struct ShaderUniforms {
         uUseWatchLight = glGetUniformLocation(shader, "uUseWatchLight");
     }
 
-    // Helper methods for common operations
     void setModelMatrix(const glm::mat4& m) const {
         glUniformMatrix4fv(uM, 1, GL_FALSE, glm::value_ptr(m));
     }

@@ -39,30 +39,24 @@ private:
 
     WatchScreen currentScreen;
 
-    // Time
     int hours, minutes, seconds;
     double lastTimeUpdate;
 
-    // Heart rate
     int heartRate;
     double lastHeartUpdate;
     float ecgScrollOffset;
 
-    // Battery
     int batteryPercent;
     double lastBatteryUpdate;
 
-    // Textures
     unsigned int warningTexture;
     unsigned int ecgTexture;
     unsigned int batteryTexture;
     unsigned int arrowTexture;
 
-    // Arrow positions for click detection
     mutable glm::vec2 leftArrowScreenPos;
     mutable glm::vec2 rightArrowScreenPos;
 
-    // Watch position offset from hand
     glm::vec3 watchOffset;
     float contentScale;
 

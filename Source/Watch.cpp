@@ -35,13 +35,11 @@ void Watch::init() {
     digitRenderer = new DigitRenderer();
     digitRenderer->init();
 
-    // Load textures
     warningTexture = loadImageToTexture("Resources/textures/warning.png");
     ecgTexture = loadImageToTexture("Resources/textures/ecg_wave.png");
     batteryTexture = loadImageToTexture("Resources/textures/battery.png");
     arrowTexture = loadImageToTexture("Resources/textures/arrow_right.png");
 
-    // Seed clock from current system time
     time_t now = time(nullptr);
     struct tm* lt = localtime(&now);
     if (lt) {
@@ -52,7 +50,6 @@ void Watch::init() {
 }
 
 void Watch::update(double deltaTime, double currentTime, bool isRunning) {
-    // Update time
     if (currentTime - lastTimeUpdate >= 1.0) {
         lastTimeUpdate = currentTime;
         seconds++;
@@ -61,7 +58,6 @@ void Watch::update(double deltaTime, double currentTime, bool isRunning) {
         if (hours >= 24) hours = 0;
     }
 
-    // Update heart rate
     if (currentTime - lastHeartUpdate >= (isRunning ? 0.05 : 0.1)) {
         lastHeartUpdate = currentTime;
         if (isRunning) {
@@ -73,12 +69,10 @@ void Watch::update(double deltaTime, double currentTime, bool isRunning) {
         }
     }
 
-    // Update ECG scroll
     float ecgSpeed = 0.3f * (heartRate / 70.0f);
     ecgScrollOffset += ecgSpeed * (float)deltaTime;
     if (ecgScrollOffset > 100.0f) ecgScrollOffset -= 100.0f;
 
-    // Update battery
     if (currentTime - lastBatteryUpdate >= 10.0) {
         lastBatteryUpdate = currentTime;
         if (batteryPercent > 0) batteryPercent--;
@@ -86,18 +80,16 @@ void Watch::update(double deltaTime, double currentTime, bool isRunning) {
 }
 
 void Watch::render(const ShaderUniforms& uniforms, const glm::mat4& handMatrix, unsigned int shader) const {
-    // Watch position relative to hand
     glm::mat4 watchM = handMatrix;
     watchM = glm::translate(watchM, watchOffset);
     watchM = glm::rotate(watchM, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     watchM = glm::rotate(watchM, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     watchM = glm::scale(watchM, glm::vec3(0.35f));
 
-    // Render watch body — disable watch light so only the screen glows, not the case
     glUniform1i(glGetUniformLocation(shader, "uUseWatchLight"), 0);
     uniforms.setModelMatrix(watchM);
     uniforms.setMaterial(
-        glm::vec3(0.02f),  // kD - very dark
+        glm::vec3(0.02f),  // kD - dark
         glm::vec3(0.01f),  // kA
         glm::vec3(0.1f),   // kS
         16.0f              // shine
@@ -105,10 +97,8 @@ void Watch::render(const ShaderUniforms& uniforms, const glm::mat4& handMatrix, 
     uniforms.setTexture(false);
     watchBody.draw();
 
-    // Re-enable watch light for the screen and everything after
     glUniform1i(glGetUniformLocation(shader, "uUseWatchLight"), 1);
 
-    // Render watch screen (slightly in front)
     glm::mat4 screenM = watchM;
     screenM = glm::translate(screenM, glm::vec3(0.0f, 0.0f, 0.021f));
 
@@ -139,11 +129,8 @@ void Watch::renderContent(unsigned int shader, const glm::mat4& screenMatrix, do
         for (int i = 0; i < segments; i++) {
             float angle1 = (float)i / segments * 2.0f * 3.14159265f;
             float angle2 = (float)(i + 1) / segments * 2.0f * 3.14159265f;
-            // Center
             fanVertices.push_back(0.0f); fanVertices.push_back(0.0f); fanVertices.push_back(0.0f);
-            // Edge 1
             fanVertices.push_back(0.5f * cos(angle1)); fanVertices.push_back(0.5f * sin(angle1)); fanVertices.push_back(0.0f);
-            // Edge 2
             fanVertices.push_back(0.5f * cos(angle2)); fanVertices.push_back(0.5f * sin(angle2)); fanVertices.push_back(0.0f);
         }
         bgVertexCount = segments * 3;
@@ -160,7 +147,6 @@ void Watch::renderContent(unsigned int shader, const glm::mat4& screenMatrix, do
     glDrawArrays(GL_TRIANGLES, 0, bgVertexCount);
     glBindVertexArray(0);
 
-    // Draw arrows
     if (currentScreen != WATCH_SCREEN_CLOCK) {
         renderQuad(shader, arrowTexture, -0.14f * s, 0.0f, 0.04f * s, 0.04f * s, screenMatrix, true);
     }
@@ -168,7 +154,6 @@ void Watch::renderContent(unsigned int shader, const glm::mat4& screenMatrix, do
         renderQuad(shader, arrowTexture, 0.14f * s, 0.0f, 0.04f * s, 0.04f * s, screenMatrix, false);
     }
 
-    // Draw screen-specific content
     switch (currentScreen) {
         case WATCH_SCREEN_CLOCK:
             renderClockScreen(shader, screenMatrix);
@@ -192,14 +177,11 @@ void Watch::renderClockScreen(unsigned int shader, const glm::mat4& parentModel)
 void Watch::renderHeartRateScreen(unsigned int shader, const glm::mat4& parentModel, double currentTime) const {
     float s = contentScale;
 
-    // ECG
     renderECG(shader, 0.0f, -0.05f * s, 0.22f * s, 0.08f * s, parentModel);
 
-    // BPM number
     float scale = 0.035f * s;
     digitRenderer->drawNumber(heartRate, -0.06f * s, 0.08f * s, scale, glm::vec3(0.8f, 0.0f, 0.0f), shader, parentModel);
 
-    // Warning if heart rate too high
     if (heartRate > 200) {
         renderQuad(shader, warningTexture, 0.0f, 0.0f, 0.3f * s, 0.3f * s, parentModel);
     }
@@ -365,5 +347,5 @@ glm::vec3 Watch::getScreenPosition(const glm::mat4& handMatrix) const {
 }
 
 void Watch::updateArrowPositions(const glm::mat4& view, const glm::mat4& proj, int screenWidth, int screenHeight) {
-    // This would need access to the screen matrix - simplified for now
+    // deprecated
 }

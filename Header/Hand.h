@@ -24,11 +24,9 @@ private:
     Model* armModel;
     HandController controller;
 
-    // Cached material properties
     glm::vec3 skinKD, skinKA, skinKS;
     float skinShine;
 
-    // Arm transform parameters
     glm::vec3 armOffset;
     glm::vec3 armRotation;
     float armScale;

@@ -1,10 +1,37 @@
 #include "../Header/Models.h"
+#include "../Header/ShaderUniforms.h"
 #include <fstream>
 #include <iostream>
 #include <unordered_map>
 #include <cstdlib>
 
-// Mesh implementation
+static std::unordered_map<std::string, glm::vec3> loadMTL(const std::string& mtlPath) {
+    std::unordered_map<std::string, glm::vec3> colors;
+    std::ifstream file(mtlPath);
+    if (!file.is_open()) return colors;
+
+    std::string currentName;
+    std::string line;
+    while (std::getline(file, line)) {
+        size_t start = line.find_first_not_of(" \t");
+        if (start == std::string::npos) continue;
+        if (start > 0) line = line.substr(start);
+
+        if (line.size() >= 6 && line.substr(0, 6) == "newmtl") {
+            currentName = line.substr(6);
+            size_t s = currentName.find_first_not_of(" \t");
+            if (s != std::string::npos) currentName = currentName.substr(s);
+            size_t e = currentName.find_last_not_of(" \t\r\n");
+            if (e != std::string::npos) currentName = currentName.substr(0, e + 1);
+        } else if (line.size() >= 2 && line[0] == 'K' && line[1] == 'd' && !currentName.empty()) {
+            float r = 0, g = 0, b = 0;
+            sscanf(line.c_str() + 2, "%f %f %f", &r, &g, &b);
+            colors[currentName] = glm::vec3(r, g, b);
+        }
+    }
+    return colors;
+}
+
 void Mesh::setupMesh() {
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -45,7 +72,6 @@ void Mesh::cleanup() {
     glDeleteBuffers(1, &EBO);
 }
 
-// Model implementation
 Model::Model(const std::string& path) {
     loadModel(path);
 }
@@ -57,7 +83,9 @@ Model::~Model() {
 }
 
 void Model::loadModel(const std::string& path) {
-    // Read entire file into memory in one shot
+    size_t lastSlash = path.find_last_of("/\\");
+    directory = (lastSlash != std::string::npos) ? path.substr(0, lastSlash) : ".";
+
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         std::cerr << "Failed to open model file: " << path << std::endl;
@@ -72,40 +100,39 @@ void Model::loadModel(const std::string& path) {
     }
     file.close();
 
-    // Heuristic reserves based on file size (avoids repeated reallocations)
     size_t estLines = (size_t)fileSize / 40;
     std::vector<glm::vec3> positions;   positions.reserve(estLines);
     std::vector<glm::vec3> normals;     normals.reserve(estLines / 2);
     std::vector<glm::vec2> texCoords;   texCoords.reserve(estLines / 2);
-    std::vector<Vertex>    vertices;    vertices.reserve(estLines / 2);
-    std::vector<unsigned int> indices;  indices.reserve(estLines * 3 / 2);
 
-    // Dedup map: key = packed (posIdx, texIdx, normIdx), value = output vertex index
-    std::unordered_map<uint64_t, unsigned int> vertexMap;
-    vertexMap.reserve(estLines);
+    // Per-material vertex/index groups
+    struct MaterialGroup {
+        std::vector<Vertex> vertices;
+        std::vector<unsigned int> indices;
+        std::unordered_map<uint64_t, unsigned int> vertexMap;
+    };
+    std::unordered_map<std::string, MaterialGroup> groups;
+    std::string currentMaterial = "_defaultMat";
+    std::string mtlFile;
 
     const char* p   = buf.data();
     const char* end = p + fileSize;
 
-    // Helper: skip whitespace (spaces/tabs only, not newlines)
     auto skipSpaces = [](const char*& ptr, const char* e) {
         while (ptr < e && (*ptr == ' ' || *ptr == '\t')) ++ptr;
     };
 
-    // Helper: advance to next line
     auto nextLine = [](const char*& ptr, const char* e) {
         while (ptr < e && *ptr != '\n') ++ptr;
-        if (ptr < e) ++ptr; // skip the '\n'
+        if (ptr < e) ++ptr;
     };
 
     while (p < end) {
-        // Skip blank lines and comments
         if (*p == '#' || *p == '\n' || *p == '\r') { nextLine(p, end); continue; }
 
         if (*p == 'v') {
             ++p;
             if (p < end && *p == 'n') {
-                // "vn" — vertex normal
                 ++p;
                 skipSpaces(p, end);
                 char* np;
@@ -116,7 +143,6 @@ void Model::loadModel(const std::string& path) {
                 nextLine(p, end);
             }
             else if (p < end && *p == 't') {
-                // "vt" — texture coordinate
                 ++p;
                 skipSpaces(p, end);
                 char* np;
@@ -126,7 +152,6 @@ void Model::loadModel(const std::string& path) {
                 nextLine(p, end);
             }
             else if (p < end && (*p == ' ' || *p == '\t')) {
-                // "v " — vertex position
                 skipSpaces(p, end);
                 char* np;
                 float x = strtof(p, &np); p = np;
@@ -136,49 +161,46 @@ void Model::loadModel(const std::string& path) {
                 nextLine(p, end);
             }
             else {
-                nextLine(p, end); // unknown "v..." token, skip
+                nextLine(p, end);
             }
         }
         else if (*p == 'f' && p + 1 < end && (p[1] == ' ' || p[1] == '\t')) {
-            // "f" — face
-            ++p; // skip 'f'
+            ++p;
+            auto& grp = groups[currentMaterial];
 
-            unsigned int faceIdx[32]; // max vertices per face before triangulation
+            unsigned int faceIdx[32];
             int faceCount = 0;
 
             while (true) {
                 skipSpaces(p, end);
                 if (p >= end || *p == '\n' || *p == '\r') break;
 
-                // Parse v/vt/vn — each component is optional after the first
                 char* np;
                 long posIdx  = strtol(p, &np, 10); p = np;
                 long texIdx  = 0;
                 long normIdx = 0;
 
                 if (p < end && *p == '/') {
-                    ++p; // skip first '/'
+                    ++p;
                     if (p < end && *p != '/') {
                         texIdx = strtol(p, &np, 10); p = np;
                     }
                     if (p < end && *p == '/') {
-                        ++p; // skip second '/'
+                        ++p;
                         normIdx = strtol(p, &np, 10); p = np;
                     }
                 }
 
-                // Convert negative (relative) indices
                 if (posIdx  < 0) posIdx  = (long)positions.size()  + posIdx  + 1;
                 if (texIdx  < 0) texIdx  = (long)texCoords.size()  + texIdx  + 1;
                 if (normIdx < 0) normIdx = (long)normals.size()    + normIdx + 1;
 
-                // Pack into a single 64-bit key (20 bits each is enough for ~1 M entries)
                 uint64_t key = ((uint64_t)(unsigned)posIdx  << 40) |
                                ((uint64_t)(unsigned)texIdx  << 20) |
                                 (uint64_t)(unsigned)normIdx;
 
-                auto it = vertexMap.find(key);
-                if (it != vertexMap.end()) {
+                auto it = grp.vertexMap.find(key);
+                if (it != grp.vertexMap.end()) {
                     faceIdx[faceCount++] = it->second;
                 } else {
                     Vertex vertex;
@@ -189,32 +211,69 @@ void Model::loadModel(const std::string& path) {
                     vertex.texCoords  = (texIdx > 0 && texIdx <= (long)texCoords.size())
                                         ? texCoords[texIdx - 1]  : glm::vec2(0.0f);
 
-                    unsigned int idx = (unsigned int)vertices.size();
-                    vertices.push_back(vertex);
-                    vertexMap[key] = idx;
+                    unsigned int idx = (unsigned int)grp.vertices.size();
+                    grp.vertices.push_back(vertex);
+                    grp.vertexMap[key] = idx;
                     faceIdx[faceCount++] = idx;
                 }
 
-                if (faceCount >= 32) break; // safety guard
+                if (faceCount >= 32) break;
             }
             nextLine(p, end);
 
-            // Fan triangulation (convex polygons)
             for (int i = 1; i + 1 < faceCount; i++) {
-                indices.push_back(faceIdx[0]);
-                indices.push_back(faceIdx[i]);
-                indices.push_back(faceIdx[i + 1]);
+                grp.indices.push_back(faceIdx[0]);
+                grp.indices.push_back(faceIdx[i]);
+                grp.indices.push_back(faceIdx[i + 1]);
             }
         }
+        else if (*p == 'u' && p + 6 < end &&
+                 p[1]=='s' && p[2]=='e' && p[3]=='m' && p[4]=='t' && p[5]=='l') {
+            p += 6;
+            skipSpaces(p, end);
+            const char* nameStart = p;
+            while (p < end && *p != '\n' && *p != '\r') ++p;
+            currentMaterial = std::string(nameStart, p - nameStart);
+            while (!currentMaterial.empty() &&
+                   (currentMaterial.back() == ' ' || currentMaterial.back() == '\r' || currentMaterial.back() == '\t'))
+                currentMaterial.pop_back();
+            if (p < end && *p == '\r') ++p;
+            if (p < end && *p == '\n') ++p;
+        }
+        else if (*p == 'm' && p + 6 < end &&
+                 p[1]=='t' && p[2]=='l' && p[3]=='l' && p[4]=='i' && p[5]=='b') {
+            p += 6;
+            skipSpaces(p, end);
+            const char* nameStart = p;
+            while (p < end && *p != '\n' && *p != '\r') ++p;
+            mtlFile = std::string(nameStart, p - nameStart);
+            while (!mtlFile.empty() &&
+                   (mtlFile.back() == ' ' || mtlFile.back() == '\r' || mtlFile.back() == '\t'))
+                mtlFile.pop_back();
+            if (p < end && *p == '\r') ++p;
+            if (p < end && *p == '\n') ++p;
+        }
         else {
-            nextLine(p, end); // skip any other line (mtllib, usemtl, o, s, …)
+            nextLine(p, end);
         }
     }
 
-    if (!vertices.empty()) {
+    std::unordered_map<std::string, glm::vec3> materialColors;
+    if (!mtlFile.empty()) {
+        materialColors = loadMTL(directory + "/" + mtlFile);
+        if (materialColors.empty()) {
+            size_t dotPos = path.rfind('.');
+            if (dotPos != std::string::npos)
+                materialColors = loadMTL(path.substr(0, dotPos) + ".mtl");
+        }
+    }
+
+    for (auto& [name, grp] : groups) {
+        if (grp.vertices.empty()) continue;
         Mesh mesh;
-        mesh.vertices = std::move(vertices);
-        mesh.indices  = std::move(indices);
+        mesh.vertices = std::move(grp.vertices);
+        mesh.indices  = std::move(grp.indices);
+        mesh.color    = materialColors.count(name) ? materialColors[name] : glm::vec3(0.8f);
         mesh.setupMesh();
         meshes.push_back(std::move(mesh));
     }
@@ -222,6 +281,16 @@ void Model::loadModel(const std::string& path) {
 
 void Model::draw() const {
     for (const auto& mesh : meshes) {
+        mesh.draw();
+    }
+}
+
+void Model::drawWithMaterials(const ShaderUniforms& uniforms) const {
+    for (const auto& mesh : meshes) {
+        glm::vec3 kD = mesh.color;
+        glm::vec3 kA = mesh.color * 0.65f;
+        uniforms.setMaterial(kD, kA, glm::vec3(0.15f), 16.0f);
+        uniforms.setTexture(false);
         mesh.draw();
     }
 }
@@ -277,10 +346,9 @@ namespace Geometry {
     Mesh createHandModel() {
         Mesh mesh;
 
-        // Arm/wrist model - sized to match watch proportions
-        float armLength = 1.0f;   // Standard arm length
-        float armWidth = 0.18f;   // Standard width
-        float armHeight = 0.14f;  // Standard height
+        float armLength = 1.0f;
+        float armWidth = 0.18f;
+        float armHeight = 0.14f;
         
         // Define 8 vertices of the box
         glm::vec3 vertices[8] = {
@@ -321,7 +389,7 @@ namespace Geometry {
                 mesh.vertices.push_back(v);
             }
             
-            // Two triangles per face
+            // Two triangles
             mesh.indices.push_back(baseIdx + 0);
             mesh.indices.push_back(baseIdx + 1);
             mesh.indices.push_back(baseIdx + 2);
@@ -340,7 +408,6 @@ namespace Geometry {
 
         float radius = size / 2.0f;
 
-        // Create a circular disc facing forward (along +Z axis)
         // Center vertex
         Vertex center;
         center.position = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -375,8 +442,6 @@ namespace Geometry {
         float radius = diameter / 2.0f;
         float hd = depth / 2.0f;
 
-        // Cylindrical watch case
-        // Back face (circle at -Z)
         int backCenterIdx = mesh.vertices.size();
         Vertex backCenter;
         backCenter.position = glm::vec3(0.0f, 0.0f, -hd);
@@ -400,7 +465,6 @@ namespace Geometry {
             mesh.indices.push_back(backCenterIdx + i);
         }
 
-        // Side wall (cylinder)
         int sideStartIdx = mesh.vertices.size();
         for (int i = 0; i <= segments; i++) {
             float angle = (float)i / (float)segments * 2.0f * 3.14159265f;
@@ -483,7 +547,7 @@ namespace Geometry {
 
                 Vertex v;
                 v.position  = glm::vec3(sinTheta * cosPhi, cosTheta, sinTheta * sinPhi);
-                v.normal    = v.position;   // unit sphere: normal == position
+                v.normal    = v.position;
                 v.texCoords = glm::vec2((float)j / (float)lonSegs, (float)i / (float)latSegs);
                 mesh.vertices.push_back(v);
             }

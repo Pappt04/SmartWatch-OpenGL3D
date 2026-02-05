@@ -42,12 +42,11 @@ bool g_freeCameraMode = false;
 // Cursor
 GLFWcursor* g_heartCursor = nullptr;
 
-// Arrow positions for click detection
+// Arrow position
 glm::vec2 g_leftArrowScreenPos(0.0f);
 glm::vec2 g_rightArrowScreenPos(0.0f);
 const float ARROW_CLICK_RADIUS = 50.0f;
 
-// Project 3D point to screen space
 glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& view, const glm::mat4& proj) {
     glm::vec4 clipPos = proj * view * glm::vec4(worldPos, 1.0f);
     if (clipPos.w <= 0.0f) return glm::vec2(-1000.0f);
@@ -55,7 +54,6 @@ glm::vec2 projectToScreen(const glm::vec3& worldPos, const glm::mat4& view, cons
     return glm::vec2((ndc.x + 1.0f) * 0.5f * g_width, (1.0f - ndc.y) * 0.5f * g_height);
 }
 
-// Mouse movement callback
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     if (g_hand && g_hand->isInViewingMode() && !g_freeCameraMode) return;
 
@@ -80,7 +78,6 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     }
 }
 
-// Mouse button callback
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     if (!g_hand || !g_hand->isInViewingMode() || !g_watch) return;
 
@@ -97,7 +94,6 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     }
 }
 
-// Key callback
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_SPACE && action == GLFW_PRESS && g_hand) {
         g_hand->toggleViewingMode();
@@ -112,7 +108,6 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     }
 }
 
-// Render student info overlay
 void renderStudentInfoOverlay(unsigned int shader) {
     glm::mat4 orthoProj = glm::ortho(0.0f, (float)g_width, 0.0f, (float)g_height, -1.0f, 1.0f);
     glm::mat4 identity = glm::mat4(1.0f);
@@ -126,7 +121,6 @@ void renderStudentInfoOverlay(unsigned int shader) {
     float margin = 20.0f, textScale = 25.0f;
     float bgWidth = 280.0f, bgHeight = 90.0f;
 
-    // Background
     glm::mat4 bgModel = glm::translate(glm::mat4(1.0f), glm::vec3(margin + bgWidth/2.0f, margin + bgHeight/2.0f, -0.1f));
     bgModel = glm::scale(bgModel, glm::vec3(bgWidth, bgHeight, 1.0f));
     g_uniforms.setModelMatrix(bgModel);
@@ -152,7 +146,6 @@ void renderStudentInfoOverlay(unsigned int shader) {
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
 
-    // Text
     glm::vec3 textColor(0.0f, 1.0f, 0.5f);
     g_digitRenderer->drawText("papp tamas", margin + 10.0f, margin + 55.0f, textScale, textColor, shader, identity);
     g_digitRenderer->drawText("ra-4-2022", margin + 10.0f, margin + 20.0f, textScale, textColor, shader, identity);
@@ -178,8 +171,7 @@ int main() {
     if (!window) { glfwTerminate(); return -1; }
 
     glfwMakeContextCurrent(window);
-    glfwSwapInterval(0); // Disable vsync for manual FPS control
-
+    glfwSwapInterval(0); 
     glfwSetCursorPosCallback(window, mouseCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetKeyCallback(window, keyCallback);
@@ -192,15 +184,12 @@ int main() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(0.07f, 0.08f, 0.12f, 1.0f);
 
-    // Create shader and cache uniform locations
     unsigned int shader = createShader("phong.vert", "phong.frag");
     g_uniforms.init(shader);
 
-    // Load cursor
     g_heartCursor = loadImageToCursor("Resources/textures/red_heart_cursor.png");
     if (g_heartCursor) glfwSetCursor(window, g_heartCursor);
 
-    // Initialize objects
     g_camera = new Camera(glm::vec3(0.0f, 1.4f, 0.0f), (float)g_width / (float)g_height);
 
     g_sun = new Sun();
@@ -256,8 +245,6 @@ int main() {
         g_street->update(deltaTime, g_isRunning);
         g_watch->update(deltaTime, currentTime, g_isRunning);
 
-        // Cursor visibility: hidden normally, heart when viewing watch,
-        // disabled (captured) in free-camera so rotation has no edge limit.
         if (g_freeCameraMode) {
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         } else if (g_hand && g_hand->isInViewingMode()) {
@@ -304,14 +291,14 @@ int main() {
         g_sun->render(g_uniforms);
         g_uniforms.setFog(true, glm::vec3(0.07f, 0.08f, 0.12f), 0.00025f);
 
-        // Render hand and watch (no fog - close to camera)
+        // Render hand and watch
         g_uniforms.setFog(false);
         g_hand->render(g_uniforms);
         g_watch->render(g_uniforms, g_hand->getTransformMatrix(), shader);
 
         // Calculate arrow positions for click detection
         glm::mat4 handM = g_hand->getTransformMatrix();
-        glm::mat4 watchM = glm::translate(handM, glm::vec3(0.15f, 0.0f, -0.05f));
+        glm::mat4 watchM = glm::translate(handM, glm::vec3(0.25f, -0.025f, -0.05f));
         watchM = glm::rotate(watchM, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         watchM = glm::rotate(watchM, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         watchM = glm::scale(watchM, glm::vec3(0.35f));

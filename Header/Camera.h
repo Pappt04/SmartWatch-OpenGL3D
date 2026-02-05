@@ -27,29 +27,23 @@ private:
 public:
     Camera(glm::vec3 startPosition, float aspectRatio);
     
-    // Get view and projection matrices
     glm::mat4 getViewMatrix() const;
     glm::mat4 getProjectionMatrix() const;
     
-    // Camera movement (vertical only)
     void moveVertical(float offset);
 
-    // Free camera movement
     void moveForward(float speed);
     void moveRight(float speed);
     void moveUp(float speed);
     void rotate(float xoffset, float yoffset);
 
-    // Running simulation bobbing
     void updateBobbing(double deltaTime, bool isRunning);
     float getBobbingOffset() const { return bobbingOffset; }
     
-    // Getters
     glm::vec3 getPosition() const { return position + glm::vec3(0.0f, bobbingOffset, 0.0f); }
     glm::vec3 getFront() const { return front; }
     glm::vec3 getUp() const { return up; }
     glm::vec3 getRight() const { return right; }
     
-    // Update aspect ratio if window is resized
     void setAspectRatio(float ratio) { aspectRatio = ratio; }
 };

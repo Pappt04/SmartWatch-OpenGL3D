@@ -35,10 +35,8 @@ void Street::init(float roadWidth, float segmentLength, int numSegments) {
     groundPlane = Geometry::createGroundPlane(200.0f, 400.0f, 50);
     roadSegment = Geometry::createRoadSegment(roadWidth, segmentLength);
 
-    // Load textures
     roadTexture = loadImageToTexture("Resources/road.jpg");
 
-    // Load building models
     buildingModels.push_back(new Model("Resources/ChonkyBuilding/chonky_buildingA.obj"));
     buildingModels.push_back(new Model("Resources/Skyscraper/skyscraperE.obj"));
     buildingModels.push_back(new Model("Resources/TallBuilding/tall_buildingC.obj"));
@@ -74,16 +72,14 @@ void Street::render(const ShaderUniforms& uniforms) const {
     }
     uniforms.setTexture(false);
 
-    // Render buildings
-    uniforms.setMaterial(materials.buildingKD, materials.buildingKA, materials.buildingKS, materials.buildingShine);
-
+    // Render buildings with per-material colors from MTL
     const auto& buildings = simulation->getBuildings();
     for (const auto& b : buildings) {
         glm::mat4 bModel = glm::mat4(1.0f);
         bModel = glm::translate(bModel, b.position);
         bModel = glm::scale(bModel, glm::vec3(b.scale));
         uniforms.setModelMatrix(bModel);
-        buildingModels[b.type]->draw();
+        buildingModels[b.type]->drawWithMaterials(uniforms);
     }
 }
 

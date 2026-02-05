@@ -7,9 +7,9 @@ Sun::Sun()
       texture(0),
       position(-20.0f, 50.0f, -70.0f),
       scale(10.0f),
-      ambient(0.22f, 0.22f, 0.22f),
-      diffuse(1.0f, 0.95f, 0.85f),
-      specular(1.0f, 1.0f, 0.9f) {
+      ambient(0.35f, 0.35f, 0.35f),
+      diffuse(1.3f, 1.25f, 1.15f),
+      specular(1.2f, 1.2f, 1.1f) {
 }
 
 Sun::~Sun() {
@@ -31,13 +31,9 @@ void Sun::render(const ShaderUniforms& uniforms) const {
     transform = glm::scale(transform, glm::vec3(scale));
     uniforms.setModelMatrix(transform);
 
-    // The light source is at the sun's own centre, so diffuse is zero on every
-    // visible fragment (normal · lightDir ≤ 0).  All brightness comes from the
-    // ambient term: light.kA * material.kA * texColor.
-    // light.kA = (0.2, 0.2, 0.2), so material.kA must be ~5× to saturate.
     uniforms.setMaterial(
-        glm::vec3(0.0f),                // kD – zero, not used anyway
-        glm::vec3(5.0f, 4.75f, 4.0f),  // kA – drives emissive brightness
+        glm::vec3(0.0f),                // kD – zero
+        glm::vec3(5.0f, 4.75f, 4.0f),  // kA –  brightness
         glm::vec3(0.0f),               // kS
         1.0f
     );

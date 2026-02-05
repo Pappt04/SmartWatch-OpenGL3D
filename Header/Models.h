@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 
+struct ShaderUniforms;
+
 struct Vertex {
     glm::vec3 position;
     glm::vec3 normal;
@@ -14,7 +16,8 @@ struct Mesh {
     std::vector<Vertex> vertices;
     std::vector<unsigned int> indices;
     unsigned int VAO, VBO, EBO;
-    
+    glm::vec3 color = glm::vec3(0.8f);
+
     void setupMesh();
     void draw() const;
     void cleanup();
@@ -32,25 +35,19 @@ public:
     ~Model();
     
     void draw() const;
+    void drawWithMaterials(const ShaderUniforms& uniforms) const;
 };
 
-// Simple geometry generators
 namespace Geometry {
-    // Create a ground plane
     Mesh createGroundPlane(float width, float depth, int subdivisions = 10);
     
-    // Create a simple hand model
     Mesh createHandModel();
     
-    // Create a circular watch screen
     Mesh createWatchScreen(float size, int segments = 32);
 
-    // Create a cylindrical watch body
     Mesh createWatchBody(float diameter, float depth, int segments = 32);
 
-    // Create a road segment
     Mesh createRoadSegment(float width, float length);
 
-    // Create a UV sphere (radius 1.0, centred at origin)
     Mesh createSphere(int latSegments = 32, int lonSegments = 32);
 }

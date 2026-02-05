@@ -35,8 +35,8 @@ void DigitRenderer::init() {
 void DigitRenderer::drawSegment(float x, float y, float w, float h, const glm::vec3& color, unsigned int shader, const glm::mat4& parentModel) {
     if (VAO == 0) init();
 
-    glm::mat4 model = parentModel; // Start with Parent Matrix
-    model = glm::translate(model, glm::vec3(x, y, 0.02f)); // Local translate
+    glm::mat4 model = parentModel;
+    model = glm::translate(model, glm::vec3(x, y, 0.02f));
     model = glm::scale(model, glm::vec3(w, h, 1.0f));
 
     glUniformMatrix4fv(glGetUniformLocation(shader, "uM"), 1, GL_FALSE, glm::value_ptr(model));
@@ -50,10 +50,10 @@ void DigitRenderer::drawSegment(float x, float y, float w, float h, const glm::v
 }
 
 void DigitRenderer::drawDigit(int digit, float x, float y, float scale, const glm::vec3& color, unsigned int shader, const glm::mat4& parentModel) {
-    float t = 0.1f * scale; // Thickness
-    float w = 0.5f * scale; // Width
-    float h = 1.0f * scale; // Total Height
-    float sh = h / 2.0f;    // Segment Height
+    float t = 0.1f * scale;
+    float w = 0.5f * scale;
+    float h = 1.0f * scale;
+    float sh = h / 2.0f;
 
     bool s[7] = {false};
     switch(digit) {
@@ -122,47 +122,46 @@ void DigitRenderer::drawPercent(float x, float y, float scale, const glm::vec3& 
 }
 
 void DigitRenderer::drawChar(char c, float x, float y, float scale, const glm::vec3& color, unsigned int shader, const glm::mat4& parentModel) {
-    float t = 0.1f * scale; // Thickness
-    float w = 0.5f * scale; // Width
-    float h = 1.0f * scale; // Total Height
-    float sh = h / 2.0f;    // Segment Height
+    float t = 0.1f * scale;
+    float w = 0.5f * scale;
+    float h = 1.0f * scale;
+    float sh = h / 2.0f;   
 
     // 7-segment: 0=top, 1=top-right, 2=bottom-right, 3=bottom, 4=bottom-left, 5=top-left, 6=middle
     bool s[7] = {false};
 
-    // Convert to uppercase for comparison
     char cu = (c >= 'a' && c <= 'z') ? (c - 32) : c;
 
     switch(cu) {
         case 'A': s[0]=1; s[1]=1; s[2]=1; s[4]=1; s[5]=1; s[6]=1; break;
-        case 'B': s[2]=1; s[3]=1; s[4]=1; s[5]=1; s[6]=1; break; // lowercase b
+        case 'B': s[2]=1; s[3]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'C': s[0]=1; s[3]=1; s[4]=1; s[5]=1; break;
-        case 'D': s[1]=1; s[2]=1; s[3]=1; s[4]=1; s[6]=1; break; // lowercase d
+        case 'D': s[1]=1; s[2]=1; s[3]=1; s[4]=1; s[6]=1; break;
         case 'E': s[0]=1; s[3]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'F': s[0]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'G': s[0]=1; s[2]=1; s[3]=1; s[4]=1; s[5]=1; break;
         case 'H': s[1]=1; s[2]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'I': s[1]=1; s[2]=1; break;
         case 'J': s[1]=1; s[2]=1; s[3]=1; s[4]=1; break;
-        case 'K': s[1]=1; s[4]=1; s[5]=1; s[6]=1; break; // approximation
+        case 'K': s[1]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'L': s[3]=1; s[4]=1; s[5]=1; break;
-        case 'M': s[0]=1; s[1]=1; s[2]=1; s[4]=1; s[5]=1; break; // approximation
-        case 'N': s[2]=1; s[4]=1; s[6]=1; break; // lowercase n
+        case 'M': s[0]=1; s[1]=1; s[2]=1; s[4]=1; s[5]=1; break;
+        case 'N': s[2]=1; s[4]=1; s[6]=1; break;
         case 'O': s[0]=1; s[1]=1; s[2]=1; s[3]=1; s[4]=1; s[5]=1; break;
         case 'P': s[0]=1; s[1]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'Q': s[0]=1; s[1]=1; s[2]=1; s[5]=1; s[6]=1; break;
-        case 'R': s[4]=1; s[6]=1; break; // lowercase r
-        case 'S': s[0]=1; s[2]=1; s[3]=1; s[5]=1; s[6]=1; break; // same as 5
-        case 'T': s[3]=1; s[4]=1; s[5]=1; s[6]=1; break; // lowercase t
+        case 'R': s[4]=1; s[6]=1; break;
+        case 'S': s[0]=1; s[2]=1; s[3]=1; s[5]=1; s[6]=1; break;
+        case 'T': s[3]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'U': s[1]=1; s[2]=1; s[3]=1; s[4]=1; s[5]=1; break;
-        case 'V': s[2]=1; s[3]=1; s[4]=1; break; // approximation
-        case 'W': s[1]=1; s[2]=1; s[3]=1; s[4]=1; s[5]=1; break; // same as U
-        case 'X': s[1]=1; s[2]=1; s[4]=1; s[5]=1; s[6]=1; break; // same as H
+        case 'V': s[2]=1; s[3]=1; s[4]=1; break;
+        case 'W': s[1]=1; s[2]=1; s[3]=1; s[4]=1; s[5]=1; break;
+        case 'X': s[1]=1; s[2]=1; s[4]=1; s[5]=1; s[6]=1; break;
         case 'Y': s[1]=1; s[2]=1; s[3]=1; s[5]=1; s[6]=1; break;
-        case 'Z': s[0]=1; s[1]=1; s[3]=1; s[4]=1; s[6]=1; break; // same as 2
+        case 'Z': s[0]=1; s[1]=1; s[3]=1; s[4]=1; s[6]=1; break;
         case '-': s[6]=1; break;
         case '_': s[3]=1; break;
-        case ' ': break; // space - no segments
+        case ' ': break;
         case ':':
             drawColon(x, y, scale, color, shader, parentModel);
             return;
@@ -189,7 +188,6 @@ void DigitRenderer::drawText(const char* text, float x, float y, float scale, co
 
     while (*text) {
         if (*text == '\n') {
-            // New line
             y -= 1.2f * scale;
             x = startX;
         } else {
