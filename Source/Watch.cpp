@@ -18,7 +18,7 @@ Watch::Watch()
       batteryPercent(100),
       lastBatteryUpdate(0.0),
       warningTexture(0), ecgTexture(0), batteryTexture(0), arrowTexture(0),
-      watchOffset(-0.15f, 0.0f, -0.05f),
+      watchOffset(0.25f, -0.025f, -0.05f),
       contentScale(0.55f) {
 }
 
@@ -89,7 +89,8 @@ void Watch::render(const ShaderUniforms& uniforms, const glm::mat4& handMatrix, 
     // Watch position relative to hand
     glm::mat4 watchM = handMatrix;
     watchM = glm::translate(watchM, watchOffset);
-    watchM = glm::rotate(watchM, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    watchM = glm::rotate(watchM, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    watchM = glm::rotate(watchM, glm::radians(180.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     watchM = glm::scale(watchM, glm::vec3(0.35f));
 
     // Render watch body — disable watch light so only the screen glows, not the case
